@@ -1,104 +1,21 @@
 import hl7.client
-import json
-import sys
+from flask import Flask, request, jsonify
+from datetime import date
 
-with open(sys.argv[1], 'r') as f:
-    varseq_json = json.load(f)
-
+# creates unique variant IDs that Beaker likes in the following pattern:
+# 2a, 2b, ..., 2z, 2A, 2B, ..., 2Z, 2aa, 2ab, ..., 2aZ, 2ba, 2bb
 alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
 def _get_variant_id(idx):
     if idx < 0:
         return ""
     quotient, remainder = divmod(idx, len(alphabet))
-    # Recursive call for the quotient - 1 to prepend the previous letters if needed
     return _get_variant_id(quotient - 1) + alphabet[remainder]
 
 def get_variant_id(idx):
     return f"2{_get_variant_id(idx)}"
 
-obx_idx = 0
-def get_obx_idx():
-    global obx_idx
-    obx_idx += 1
-    return obx_idx
-
-def get_biomarkers():
-    biomarkers = filter(lambda x: x["type"] == "VARIANT", varseq_json["biomarkers"])
-    return list(biomarkers)
-
-def get_all_variants():
-    return get_biomarkers() + varseq_json["germlineVariants"] + varseq_json["uncertainVariants"]
-
-def get_sig(sig_name):
-    for biomarker in varseq_json["biomarkers"]:
-        if biomarker["type"] == "SIGNATURE" and biomarker["geneName"] == sig_name:
-            return biomarker["quantitativeValue"]
-
-def get_msi(): 
-    return get_sig("MSI")
-
-def get_tmb():
-    return get_sig("TMB")
-
-def get_custom_field(field_name):
-    fields = varseq_json["customFields"]
-    return fields[field_name] if field_name in fields else ""
-
-def get_prov_id():
-    return get_custom_field("providerID")
-
-def get_order_num():
-    return get_custom_field("orderNumber")
-
-def get_pt_name():
-    return varseq_json["sampleState"]["patientName"].split(" (")[0].split(",")
-
-def get_prov_name():
-    return [fn_or_ln.strip() for fn_or_ln in varseq_json["sampleState"]["orderingPhysician"].split(",")][:2]
-
-def format_msh_date(date):
-    [m, d, y] = date.split('/')
-    return y + m + d
-
-def get_tumor_type():
-    tt = varseq_json["tumorType"]
-    tt_abbrev = varseq_json["tumorTypeAbbrev"]
-    return f"{tt} ({tt_abbrev})"
-
-def get_clin_sig(variant):
-    if variant in varseq_json["biomarkers"]:
-        return "Tier 1: Strong significance"
-    else:
-        return "Tier 3: Unknown clinical significance"
-
-def get_variant_type(variant):
-    variant_type = variant["tags"][0]["initials"]
-    if variant_type == "SM":
-        return "Somatic"
-    elif variant_type == "GL":
-        return "Germline"
-    else:
-        return "Unknown"
-
-def get_interp(variant):
-    summary = variant["biomarkerSummary"]
-    if summary:
-        interp = summary["interpretation"]
-        # TODO if we end up seeing more HTML elements, actually do this properly with re.sub
-        interp = interp.replace("<p>", "").replace("</p>", "")
-        return interp
-    else:
-        return ""
-
-def get_chrom(variant):
-    mutation = variant["mutation"]
-    if mutation:
-        return mutation["chr"]
-    else:
-        return ""
-
-LOINCS = { "48018-6": ["Gene Studied Name", "CWE"],
+LOINCS = {
+    "48018-6": ["Gene Studied Name", "CWE"],
     "81252-9": ["Discrete Genetic Variant", "CWE"],
     "48005-3": ["Amino Acid Change p.HGVS", "ST"],
     "48004-6": ["DNA Change c.HGVS", "CWE"],
@@ -128,78 +45,222 @@ def get_loinc_info(code):
     else:
         raise RuntimeError("Invalid LOINC code")
 
-def get_variant_obx(variant_id, loinc_code, value):
-    return f"""OBX|{get_obx_idx()}|{get_loinc_info(loinc_code)}|{variant_id}|{value}"""
+class VarSeqInfo():
+    def __init__(self, varseq_json):
+        self.obx_idx = 0
+        self.varseq_json = varseq_json
+        self.sample_info = self.varseq_json["sampleState"]
+        self.sample_id = self.sample_info["sampleName"]
+        self.mrn = self.sample_info["mrn"]
+        self.pt_ln, self.pt_fn = self.get_pt_name()
+        self.bday = self.get_date("dob")
+        self.sex = self.sample_info["sex"][0]
+        self.order_num = self.get_order_num()
+        self.prov_id = self.get_prov_id()
+        self.prov_ln, self.prov_fn = self.get_prov_name()
+        self.date_ordered = self.get_date("dateOrdered")
+        self.date_received = self.get_date("dateReceived")
+        self.date_collected = self.get_date("dateCollected")
+        self.date_sent = date.today().strftime("%Y%m%d")
+        self.norm_sample_id = self.get_custom_field("N_SID")
+        self.norm_order_num = self.get_custom_field("N_OrderID")
+        self.norm_date_ordered = self.format_msh_date(self.get_custom_field("N_DateOrdered").split(" ")[0])
+        self.norm_date_received = self.format_msh_date(self.get_custom_field("N_DateReceived").split(" ")[0])
+    
+    def get_obx_idx(self):
+        self.obx_idx += 1
+        return self.obx_idx
 
-def create_header():
-    sample_info = varseq_json["sampleState"]
-    sample_id = sample_info["sampleName"]
-    mrn = sample_info["mrn"]
-    pt_ln, pt_fn = get_pt_name()
-    bday = format_msh_date(sample_info["dob"])
-    sex = sample_info["sex"]
-    order_num = get_order_num()
-    prov_id = get_prov_id()
-    prov_ln, prov_fn = get_prov_name()
-    date_ordered = format_msh_date(sample_info["dateOrdered"])
-    date_received = format_msh_date(sample_info["dateReceived"])
-    date_collected = format_msh_date(sample_info["dateCollected"])
-    date_sent = format_msh_date(sample_info["lastModifiedDate"])
-    return f"""MSH|^~\&|RRH||Beaker||{date_sent}||ORU^R01|1|P|2.3||||||\r
-PID|1||{mrn}^^^MRN^MRN||{pt_ln}^{pt_fn}^||{bday}|{sex}\r
+    def reset_obx_idx(self):
+        self.obx_idx = 0
+        return self.obx_idx
+
+    def get_biomarkers(self):
+        biomarkers = filter(lambda x: x["type"] == "VARIANT", self.varseq_json["biomarkers"])
+        return list(biomarkers)
+
+    def get_germline_variants(self):
+        germline_biomarkers = filter(lambda x: x["tags"][0]["initials"] == "GL", self.get_all_variants())
+        return list(germline_biomarkers) + self.varseq_json["germlineVariants"]
+
+    def get_all_variants(self):
+        return self.get_biomarkers() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
+
+    def get_sig(self, sig_name):
+        for biomarker in self.varseq_json["biomarkers"]:
+            if biomarker["type"] == "SIGNATURE" and biomarker["geneName"] == sig_name:
+                return biomarker["quantitativeValue"]
+        return ""
+
+    def get_msi(self): 
+        return self.get_sig("MSI")
+
+    def get_tmb(self):
+        return self.get_sig("TMB")
+
+    def get_custom_field(self, field_name):
+        fields = self.varseq_json["customFields"]
+        return fields[field_name] if field_name in fields else ""
+
+    def get_prov_id(self):
+        return self.get_custom_field("ProviderID")
+
+    def get_order_num(self):
+        return self.get_custom_field("OrderID")
+
+    def get_pt_name(self):
+        return self.varseq_json["sampleState"]["patientName"].split(" (")[0].split(",")
+
+    def get_prov_name(self):
+        return [fn_or_ln.strip() for fn_or_ln in self.varseq_json["sampleState"]["orderingPhysician"].split(",")][:2]
+
+    def format_msh_date(self, date):
+        [m, d, y] = date.split('/')
+        return y + m + d
+
+    def get_date(self, date_type):
+        return self.format_msh_date(self.varseq_json["sampleState"][date_type])
+
+    def get_tumor_type(self):
+        tt = self.varseq_json["tumorType"]
+        tt_abbrev = self.varseq_json["tumorTypeAbbrev"]
+        return f"{tt} ({tt_abbrev})"
+
+    def get_clin_sig(self, variant):
+        if variant in self.varseq_json["biomarkers"]:
+            return "Tier 1: Strong significance"
+        else:
+            return "Tier 3: Unknown clinical significance"
+        
+    def get_variant_type(self, variant):
+        variant_type = variant["tags"][0]["initials"]
+        if variant_type == "SM":
+            return "Somatic"
+        elif variant_type == "GL":
+            return "Germline"
+        else:
+            return "Unknown"
+
+    def get_interp(self, variant):
+        summary = variant["biomarkerSummary"]
+        if summary:
+            interp = summary["interpretation"]
+            # TODO if we end up seeing more HTML elements, actually do this properly with regex (re.sub)
+            interp = interp.replace("<p>", "").replace("</p>", "").replace("&nbsp;", " ")
+            return interp
+        else:
+            return ""
+
+    def get_chrom(self, variant):
+        mutation = variant["mutation"]
+        if mutation:
+            return mutation["chr"]
+        else:
+            return ""
+        
+    def get_variant_obx(self, variant_id, loinc_code, value):
+        return f"""OBX|{self.get_obx_idx()}|{get_loinc_info(loinc_code)}|{variant_id}|{value}"""
+
+    def get_variant_obx_function(self, variant_id):
+        def wrapper_func(loinc_code, value):
+            return self.get_variant_obx(variant_id, loinc_code, value)
+        return wrapper_func
+
+    def get_variant_obxs(self, variant, idx):
+        display_name = variant["geneName"]
+        variant_id = get_variant_id(idx)
+        get_variant_obx = self.get_variant_obx_function(variant_id)
+        pDot = variant["pDotThreeLetter"] if variant["pDotThreeLetter"] else "p.?"
+        obxs =  [
+            get_variant_obx("47998-0", display_name), # Variant Display Name
+            get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
+            get_variant_obx("81252-9", f"v1^{variant['hgvsWithGene']}^ClinVar-V"), # Discrete Genetic Variant
+            get_variant_obx("48018-6", f"^{display_name}^"), # Variant Name (This is also a discrete field in EPIC)
+            get_variant_obx("48005-3", f"{pDot}"), # Amino Acid Change p.HGVS
+            get_variant_obx("48004-6", f"^{variant['cDot']}"), # DNA Change c.HGVS
+            get_variant_obx("48006-1", f"^{variant['effect']}"), # Molecular Consequence (Missense, Nonsense, etc.)
+            get_variant_obx("62374-4", "^GRCh38"), # Human Reference Sequence Assembly Version
+            get_variant_obx("53037-8", f"^{self.get_clin_sig(variant)}"), # Genetic Sequence Variation Clinical Significance
+            get_variant_obx("48000-4", self.get_chrom(variant)), # Chromosome
+            get_variant_obx("81258-6", round(variant["vaf"], 2)), # Allelic Frequency
+            get_variant_obx("82121-5", variant["altReadCount"]), # Allelic Read Depth
+            get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
+            get_variant_obx("93364-8", self.get_interp(variant)), # Genetic Variant Diagnostic Significance
+            get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
+        ]
+        return "\r\n".join(obxs) + "\r\n"
+
+    # While we send these variants in the tumor's HL7 message, we send them again here for the normal sample so we can get the normal allele frequency
+    def get_normal_variant_obxs(self, variant, idx):
+        display_name = variant["geneName"]
+        variant_id = get_variant_id(idx)
+        get_variant_obx = self.get_variant_obx_function(variant_id)
+        obxs =  [
+            get_variant_obx("47998-0", display_name), # Variant Display Name
+            get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
+            get_variant_obx("81252-9", f"v1^{variant['hgvsWithGene']}^ClinVar-V"), # Discrete Genetic Variant
+            get_variant_obx("48018-6", f"^{display_name}^"), # Variant Name (This is also a discrete field in EPIC)
+            get_variant_obx("62374-4", "^GRCh38"), # Human Reference Sequence Assembly Version
+            get_variant_obx("81258-6", round(variant['naf'], 2)), # Allelic Frequency
+            get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
+            get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
+        ]
+        return "\r\n".join(obxs) + "\r\n"
+
+    def get_hl7_header(self):
+        self.reset_obx_idx()
+        return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
+PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
 ORC|RE\r
-OBR|1|{order_num}|{sample_id}^Beaker|LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{date_ordered}|||||||||{prov_id}^{prov_ln}^{prov_fn}^^^^^^EPIC^^^^PROVID||||||{date_received}|||F\r
-{get_variant_obx("2a", "7102415", f"^{get_tumor_type()}")}\r
-{get_variant_obx("2a", "81695-9", f"^{get_msi()}")}\r
-{get_variant_obx("2a", "94076-7", f"{get_tmb()}")}\r"""
+OBR|1|{self.order_num}|{self.sample_id}^Beaker|LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.date_received}|||F\r
+{self.get_variant_obx("2a", "7102415", f"^{self.get_tumor_type()}")}\r
+{self.get_variant_obx("2a", "81695-9", f"^{self.get_msi()}")}\r
+{self.get_variant_obx("2a", "94076-7", f"{self.get_tmb()}")}\r"""
 
-def get_variant_obx_function(variant_id):
-    def wrapper(loinc_code, value):
-        return get_variant_obx(variant_id, loinc_code, value)
-    return wrapper
+    def get_normal_hl7_header(self):
+        self.reset_obx_idx()
+        return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
+PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
+ORC|RE\r
+OBR|1|{self.norm_order_num}|{self.norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Comparator^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.norm_date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.norm_date_received}|||F\r
+"""
 
-def get_variant_obxs(variant, idx):
-    display_name = variant["geneName"]
-    variant_id = get_variant_id(idx)
-    get_variant_obx = get_variant_obx_function(variant_id)
-    obxs =  [
-        get_variant_obx("47998-0", display_name), # Variant Display Name
-        get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
-        get_variant_obx("81252-9", f"v1^{variant['hgvsWithGene']}^ClinVar-V"), # Discrete Genetic Variant
-        get_variant_obx("48018-6", f"^{display_name}^"), # Variant Name (This is also a discrete field in EPIC)
-        get_variant_obx("48005-3", variant["pDotThreeLetter"]), # Amino Acid Change p.HGVS
-        get_variant_obx("48004-6", f"^{variant['cDot']}"), # DNA Change c.HGVS
-        get_variant_obx("48006-1", f"^{variant['effect']}"), # Molecular Consequence (Missense, Nonsense, etc.)
-        get_variant_obx("62374-4", "^GRCh38"), # Human Reference Sequence Assembly Version
-        get_variant_obx("53037-8", f"^{get_clin_sig(variant)}"), # Genetic Sequence Variation Clinical Significance
-        get_variant_obx("48000-4", get_chrom(variant)), # Chromosome
-        get_variant_obx("81258-6", round(variant["vaf"], 2)), # Allelic Frequency
-        get_variant_obx("82121-5", variant["altReadCount"]), # Allelic Read Depth
-        get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
-        get_variant_obx("93364-8", get_interp(variant)), # Genetic Variant Diagnostic Significance
-        get_variant_obx("48002-0", f"^{get_variant_type(variant)}"), # Genomic Source Class
-    ]
-    return "\r\n".join(obxs) + "\r\n"
+    def get_hl7_variants(self):
+        variants = self.get_all_variants()
+        return "\r\n".join([self.get_variant_obxs(variant, idx) for idx, variant in enumerate(variants)])
+    
+    def get_normal_hl7_variants(self):
+        variants = self.get_germline_variants()
+        return "\r\n".join([self.get_normal_variant_obxs(variant, idx) for idx, variant in enumerate(variants)])
 
-def create_hl7_msg():
-    msg = create_header()
-    for idx, variant in enumerate(get_all_variants()):
-        msg += get_variant_obxs(variant, idx)
-    return msg
+def get_hl7_msg(vsinfo):
+    return vsinfo.get_hl7_header() + vsinfo.get_hl7_variants()
 
-def send_hl7_msg():
-    msg = create_hl7_msg()
-    # prints the response from the server
-    print(hl7.client.MLLPClient("interface-test.mednet.ucla.edu", 7199).send_message(msg))
-    with open("./hl7_msg.txt", "w") as f:
-        f.write(msg)
-    # print(msg)
+def get_normal_hl7_msg(vsinfo):
+    return vsinfo.get_normal_hl7_header() + vsinfo.get_normal_hl7_variants()
 
-send_hl7_msg()
+def create_hl7_msgs(vs_json):
+    vsinfo = VarSeqInfo(vs_json)
+    tumor_msg, normal_msg = (get_hl7_msg(vsinfo), get_normal_hl7_msg(vsinfo))
+    return tumor_msg, normal_msg
 
-# if __name__ == "__main__":
-#     import sys
-#     if len(sys.argv) != 2:
-#         print("Usage: python3 varseq_hl7.py <path to varseq json>")
-#         sys.exit(1)
-#     send_hl7_msg(sys.argv[1])
+def send_hl7_msgs(vs_json):
+    tumor_msg, normal_msg = create_hl7_msgs(vs_json)
+    hostname = "interface-test.mednet.ucla.edu"
+    port = 7199
+    # sends messages and prints the corresponding acks from Beaker
+    print(hl7.client.MLLPClient(hostname, port).send_message(tumor_msg))
+    print(hl7.client.MLLPClient(hostname, port).send_message(normal_msg))
+    return vs_json
+
+app = Flask(__name__)
+
+@app.route('/receivejson', methods=['POST'])
+def receive_json():
+    data = request.get_json()
+    result = send_hl7_msgs(data)
+    return jsonify(result), 200
+
+# launches Flask server on localhost:5000
+if __name__ == '__main__':
+    app.run(debug=True)

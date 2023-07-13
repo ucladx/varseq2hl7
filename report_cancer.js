@@ -1,9 +1,21 @@
 // import { exec } from '/tmp/child_process.js';
 
-function create_hl7_msg(reportData) {
-	const output = exec("python3 ~iatol/hl7/create_hl7_msg.py " + JSON.stringify(reportData));
-	console.log("output: " + output);
-};
+async function sendJSON(jsonData, url) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jsonData)
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
 
 export default {
     description: 'Add NAF and send an HL7 message to Beaker',
@@ -54,8 +66,11 @@ export default {
             }
         }
 
-        // OS call a Python script that creates and sends the HL7 message
-        // create_hl7_msg(reportData);
+        // Send the JSON to a Flask server that will send a corresponding HL7 message to Beaker
+        const url = 'http://localhost:5000/receivejson';
+        sendJSON(reportData, url)
+            .then(data => console.log(data))
+            .catch(error => console.error(`Error: ${error}`));
         return [
             JSON.stringify(reportData)
         ];
