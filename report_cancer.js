@@ -19,9 +19,8 @@ async function sendJSON(jsonData, url) {
 
 export default {
     description: 'Add NAF and send an HL7 message to Beaker',
-
-    inputFileNamesTemplate: ['{sampleName}_enhanced.json'],
-    outputFileNamesTemplate: ['{sampleName}_hl7.json'],
+    inputFileNamesTemplate: ['{sampleName}.json'],
+    outputFileNamesTemplate: ['{sampleName}_enhanced.json'],
 
     async render({
         templatedInputs,
