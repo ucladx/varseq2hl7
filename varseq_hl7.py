@@ -29,11 +29,17 @@ LOINCS = {
     "94076-7": ["Tumor Mutational Burden", "NM"],
     "47998-0": ["Variant Display Name", "ST"],
     "83005-9": ["Variant Category", "ST"],
-	"7102415": ["Tumor Type", "CWE"],
+    "7102415": ["Tumor Type", "CWE"],
     "81695-9": ["Microsatellite Instability", "CWE"],
-	"69548-6": ["Genetic Variant Assessment", "ST"],
-	"93364-8": ["Genetic Variant Diagnostic Significance", "ST"],
-	"48002-0": ["Genomic Source Class", "CWE"],
+    "69548-6": ["Genetic Variant Assessment", "ST"],
+    "93364-8": ["Genetic Variant Diagnostic Significance", "ST"],
+    "48002-0": ["Genomic Source Class", "CWE"],
+    "7102416": ["Sample Library Average Size", "CWE"],
+    "7102417": ["Run Loading Concentration", "CWE"],
+    "7102418": ["Dna Nanodrop Concentration", "CWE"],
+    "7102419": ["Dna Qubit Concentration", "CWE"],
+    "7102420": ["Pool Library Concentration", "CWE"],
+    "7102421": ["Pool Library Average Size", "CWE"],
 }
 
 def get_loinc_info(code):
@@ -66,6 +72,18 @@ class VarSeqInfo():
         self.norm_order_num = self.get_custom_field("N_OrderID")
         self.norm_date_ordered = self.format_msh_date(self.get_custom_field("N_DateOrdered").split(" ")[0])
         self.norm_date_received = self.format_msh_date(self.get_custom_field("N_DateReceived").split(" ")[0])
+        self.lib_avg_size = self.get_custom_field("lib_avg_size")
+        self.lib_conc = self.get_custom_field("lib_conc")
+        self.nanodrop_conc = self.get_custom_field("nanodrop_conc")
+        self.qubit_conc = self.get_custom_field("qubit_conc")
+        self.pool_lib_conc = self.get_custom_field("pool_lib_conc")
+        self.pool_lib_avg_size = self.get_custom_field("pool_lib_avg_size")
+        self.N_lib_avg_size = self.get_custom_field("N_lib_avg_size")
+        self.N_lib_conc = self.get_custom_field("N_lib_conc")
+        self.N_nanodrop_conc = self.get_custom_field("N_nanodrop_conc")
+        self.N_qubit_conc = self.get_custom_field("N_qubit_conc")
+        self.N_pool_lib_conc = self.get_custom_field("N_pool_lib_conc")
+        self.N_pool_lib_avg_size = self.get_custom_field("N_pool_lib_avg_size")
     
     def get_obx_idx(self):
         self.obx_idx += 1
@@ -215,7 +233,13 @@ ORC|RE\r
 OBR|1|{self.order_num}|{self.sample_id}^Beaker|LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.date_received}|||F\r
 {self.get_variant_obx("2a", "7102415", f"^{self.get_tumor_type()}")}\r
 {self.get_variant_obx("2a", "81695-9", f"^{self.get_msi()}")}\r
-{self.get_variant_obx("2a", "94076-7", f"{self.get_tmb()}")}\r"""
+{self.get_variant_obx("2a", "94076-7", f"{self.get_tmb()}")}\r
+{self.get_variant_obx("2a", "7102416", f"^{self.lib_avg_size}")}\r
+{self.get_variant_obx("2a", "7102417", f"^{self.lib_conc}")}\r
+{self.get_variant_obx("2a", "7102418", f"^{self.nanodrop_conc}")}\r
+{self.get_variant_obx("2a", "7102419", f"^{self.qubit_conc}")}\r
+{self.get_variant_obx("2a", "7102420", f"^{self.pool_lib_conc}")}\r
+{self.get_variant_obx("2a", "7102421", f"^{self.pool_lib_avg_size}")}\r"""
 
     def get_normal_hl7_header(self):
         self.reset_obx_idx()
@@ -223,7 +247,12 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|LAB9055^Pan-cancer Solid Tumor Pa
 PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
 ORC|RE\r
 OBR|1|{self.norm_order_num}|{self.norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Comparator^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.norm_date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.norm_date_received}|||F\r
-"""
+{self.get_variant_obx("2a", "7102416", f"^{self.N_lib_avg_size}")}\r
+{self.get_variant_obx("2a", "7102417", f"^{self.N_lib_conc}")}\r
+{self.get_variant_obx("2a", "7102418", f"^{self.N_nanodrop_conc}")}\r
+{self.get_variant_obx("2a", "7102419", f"^{self.N_qubit_conc}")}\r
+{self.get_variant_obx("2a", "7102420", f"^{self.N_pool_lib_conc}")}\r
+{self.get_variant_obx("2a", "7102421", f"^{self.N_pool_lib_avg_size}")}\r"""
 
     def get_hl7_variants(self):
         variants = self.get_all_variants()
@@ -248,6 +277,11 @@ def send_hl7_msgs(vs_json):
     tumor_msg, normal_msg = create_hl7_msgs(vs_json)
     hostname = "interface-test.mednet.ucla.edu"
     port = 7199
+
+    # with open("./hl7_msg_N.txt", "w") as f:
+    #     f.write(normal_msg)
+    # with open("./hl7_msg_T.txt", "w") as f:
+    #     f.write(tumor_msg)
     # sends messages and prints the corresponding acks from Beaker
     print(hl7.client.MLLPClient(hostname, port).send_message(tumor_msg))
     print(hl7.client.MLLPClient(hostname, port).send_message(normal_msg))
