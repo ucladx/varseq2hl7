@@ -35,12 +35,57 @@ LOINCS = {
     "69548-6": ["Genetic Variant Assessment", "ST"],
     "93364-8": ["Genetic Variant Diagnostic Significance", "ST"],
     "48002-0": ["Genomic Source Class", "CWE"],
-    "7102416": ["Sample Library Average Size", "CWE"],
-    "7102417": ["Run Loading Concentration", "CWE"],
-    "7102418": ["Dna Nanodrop Concentration", "CWE"],
-    "7102419": ["Dna Qubit Concentration", "CWE"],
-    "7102420": ["Pool Library Concentration", "CWE"],
-    "7102421": ["Pool Library Average Size", "CWE"],
+    "48019-4": ["DNA Change [Type]", "CWE"],
+    "51958-7": ["Transcript Reference Sequence", "ST"],
+    "52250046": ["Protein Reference Sequence", "ST"],
+    "81290-9": ["Genomic DNA Change g.HGVS", "ST"],
+    "81254-5": ["Genomic Allele Start-End", "ST"],
+    "53034-5": ["Allelic State", "CWE"],
+}
+
+# Sequence Ontology -> EPIC molecular consequence and DNA change type
+SEQ_ONTOLOGY_MAP = {
+    "transcript_ablation": ("Transcript Ablation", "Insertion/Deletion"),
+    "splice_acceptor_variant": ("Splice Acceptor Variant", ""),
+    "splice_donor_variant": ("Splice Donor Variant", ""),
+    "stop_gained": ("Stop Retained Variant", "Insertion/Deletion"), # TODO
+    "frameshift_variant": ("Frameshift Variant", "Insertion/Deletion"),
+    "stop_lost": ("Stop Lost", "Insertion/Deletion"),
+    "start_lost": ("Start Lost", "Insertion/Deletion"),
+    "transcript_amplification": ("Transcript Amplification", ""),
+    "feature_elongation": ("Feature Elongation", "Insertion/Deletion"),
+    "feature_truncation": ("Feature Truncation", "Insertion/Deletion"),
+    "inframe_insertion": ("Inframe Insertion", "Insertion/Deletion"),
+    "inframe_deletion": ("Inframe Deletion", "Insertion/Deletion"),
+    "missense_variant": ("Missense Variant", ""),
+    "protein_altering_variant": ("Protein Altering Variant", ""),
+    "splice_donor_5th_base_variant": ("Splice Donor Variant", ""),
+    "splice_region_variant": ("Splice Region Variant", ""),
+    "splice_donor_region_variant": ("consequence", ""), # TODO
+    "splice_polypyrimidine_tract_variant": ("consequence", ""), # TODO
+    "incomplete_terminal_codon_variant": ("Incomplete Terminal Codon Variant", ""),
+    "start_retained_variant": ("Start Retained Variant", ""),
+    "stop_retained_variant": ("Stop Retained Variant", ""),
+    "synonymous_variant": ("Synonymous Variant", "dna_change_type"),
+    "coding_sequence_variant": ("Coding Sequence Variant", ""),
+    "mature_miRNA_variant": ("Mature miRNA Variant", ""),
+    "5_prime_UTR_variant": ("5 Prime UTR Variant", ""),
+    "3_prime_UTR_variant": ("3 Prime UTR Variant", ""),
+    "non_coding_transcript_exon_variant": ("Non Coding Transcript Exon Variant", ""),
+    "intron_variant": ("Intron Variant", ""),
+    "NMD_transcript_variant": ("NMD Transcript Variant", ""),
+    "non_coding_transcript_variant": ("Non Coding Transcript Variant", ""),
+    "coding_transcript_variant": ("Coding Sequence Variant", ""), # TODO
+    "upstream_gene_variant": ("Upstream Gene Variant", ""),
+    "downstream_gene_variant": ("Downstream Gene Variant", ""),
+    "TFBS_ablation": ("TFBS Ablation", ""),
+    "TFBS_amplification": ("TFBS Amplification", ""),
+    "TF_binding_site_variant": ("TF Binding Site Variant", ""),
+    "regulatory_region_ablation": ("Regulatory Region Ablation", ""),
+    "regulatory_region_amplification": ("Regulatory Region Amplification", ""),
+    "regulatory_region_variant": ("Regulatory Region Variant", ""),
+    "intergenic_variant": ("Intergenic Variant", ""),
+    "sequence_variant": ("Coding Sequence Variant", ""),
 }
 
 def get_loinc_info(code):
@@ -172,15 +217,6 @@ class VarSeqInfo():
         else:
             return ""
 
-    # TODO replace with map from sequenceOntology -> EPIC term
-    def get_effect(self, variant):
-        mutation = variant["mutation"]
-        if mutation:
-            effect = mutation["effect"].replace("In-frame", "inframe")
-            return effect
-        else:
-            return ""
- 
     def get_naf(self, variant):
         naf = variant["naf"]
         if naf == "null":
@@ -190,6 +226,9 @@ class VarSeqInfo():
             return "<LoD"
         else:
             return rounded_naf
+        
+    def get_effect_and_dna_change(self, variant):
+        return SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"], ("", ""))
 
     def get_variant_obx(self, variant_id, loinc_code, value):
         return f"""OBX|{self.get_obx_idx()}|{get_loinc_info(loinc_code)}|{variant_id}|{value}"""
@@ -204,6 +243,7 @@ class VarSeqInfo():
         variant_id = get_variant_id(idx)
         get_variant_obx = self.get_variant_obx_function(variant_id)
         pDot = variant["pDotThreeLetter"] if variant["pDotThreeLetter"] else "p.?"
+        mol_consequence, dna_change_type = self.get_effect_and_dna_change(variant)
         obxs =  [
             get_variant_obx("47998-0", display_name), # Variant Display Name
             get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
@@ -211,7 +251,6 @@ class VarSeqInfo():
             get_variant_obx("48018-6", f"^{display_name}^"), # Variant Name (This is also a discrete field in EPIC)
             get_variant_obx("48005-3", f"{pDot}"), # Amino Acid Change p.HGVS
             get_variant_obx("48004-6", f"^{variant['cDot']}"), # DNA Change c.HGVS
-            get_variant_obx("48006-1", f"^{variant['effect']}"), # Molecular Consequence (Missense, Nonsense, etc.)
             get_variant_obx("62374-4", "^GRCh38"), # Human Reference Sequence Assembly Version
             get_variant_obx("53037-8", f"^{self.get_clin_sig(variant)}"), # Genetic Sequence Variation Clinical Significance
             get_variant_obx("48000-4", self.get_chrom(variant)), # Chromosome
@@ -220,6 +259,12 @@ class VarSeqInfo():
             get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
             get_variant_obx("93364-8", self.get_interp(variant)), # Genetic Variant Diagnostic Significance
             get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
+            get_variant_obx("51958-7", variant["transcriptName"]),
+            get_variant_obx("52250046", variant["proteinId"]),
+            get_variant_obx("81290-9", variant["gDot"]), # Genomic DNA Change g.HGVS
+            get_variant_obx("81254-5", f"{variant['start']}^{variant['stop']}"), # Genomic Allele Start-End
+            get_variant_obx("48006-1", mol_consequence),
+            get_variant_obx("48019-4", dna_change_type),
         ]
         return "\r\n".join(obxs) + "\r\n"
 
@@ -237,6 +282,7 @@ class VarSeqInfo():
             get_variant_obx("81258-6", self.get_naf(variant)), # Allelic Frequency
             get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
             get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
+            get_variant_obx("53034-5", variant["zygosity"]),
         ]
         return "\r\n".join(obxs) + "\r\n"
 
