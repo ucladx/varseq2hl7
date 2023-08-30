@@ -45,47 +45,47 @@ LOINCS = {
 
 # Sequence Ontology -> EPIC molecular consequence and DNA change type
 SEQ_ONTOLOGY_MAP = {
-    "transcript_ablation": ("Transcript Ablation", "Insertion/Deletion"),
-    "splice_acceptor_variant": ("Splice Acceptor Variant", ""),
-    "splice_donor_variant": ("Splice Donor Variant", ""),
-    "stop_gained": ("Stop Retained Variant", "Insertion/Deletion"), # TODO
-    "frameshift_variant": ("Frameshift Variant", "Insertion/Deletion"),
-    "stop_lost": ("Stop Lost", "Insertion/Deletion"),
-    "start_lost": ("Start Lost", "Insertion/Deletion"),
-    "transcript_amplification": ("Transcript Amplification", ""),
-    "feature_elongation": ("Feature Elongation", "Insertion/Deletion"),
-    "feature_truncation": ("Feature Truncation", "Insertion/Deletion"),
-    "inframe_insertion": ("Inframe Insertion", "Insertion/Deletion"),
-    "inframe_deletion": ("Inframe Deletion", "Insertion/Deletion"),
-    "missense_variant": ("Missense Variant", ""),
-    "protein_altering_variant": ("Protein Altering Variant", ""),
-    "splice_donor_5th_base_variant": ("Splice Donor Variant", ""),
-    "splice_region_variant": ("Splice Region Variant", ""),
-    "splice_donor_region_variant": ("consequence", ""), # TODO
-    "splice_polypyrimidine_tract_variant": ("consequence", ""), # TODO
-    "incomplete_terminal_codon_variant": ("Incomplete Terminal Codon Variant", ""),
-    "start_retained_variant": ("Start Retained Variant", ""),
-    "stop_retained_variant": ("Stop Retained Variant", ""),
-    "synonymous_variant": ("Synonymous Variant", "dna_change_type"),
-    "coding_sequence_variant": ("Coding Sequence Variant", ""),
-    "mature_miRNA_variant": ("Mature miRNA Variant", ""),
-    "5_prime_UTR_variant": ("5 Prime UTR Variant", ""),
-    "3_prime_UTR_variant": ("3 Prime UTR Variant", ""),
-    "non_coding_transcript_exon_variant": ("Non Coding Transcript Exon Variant", ""),
-    "intron_variant": ("Intron Variant", ""),
-    "NMD_transcript_variant": ("NMD Transcript Variant", ""),
-    "non_coding_transcript_variant": ("Non Coding Transcript Variant", ""),
-    "coding_transcript_variant": ("Coding Sequence Variant", ""), # TODO
-    "upstream_gene_variant": ("Upstream Gene Variant", ""),
-    "downstream_gene_variant": ("Downstream Gene Variant", ""),
-    "TFBS_ablation": ("TFBS Ablation", ""),
-    "TFBS_amplification": ("TFBS Amplification", ""),
-    "TF_binding_site_variant": ("TF Binding Site Variant", ""),
-    "regulatory_region_ablation": ("Regulatory Region Ablation", ""),
-    "regulatory_region_amplification": ("Regulatory Region Amplification", ""),
-    "regulatory_region_variant": ("Regulatory Region Variant", ""),
-    "intergenic_variant": ("Intergenic Variant", ""),
-    "sequence_variant": ("Coding Sequence Variant", ""),
+    "transcript_ablation": "Transcript Ablation",
+    "splice_acceptor_variant": "Splice Acceptor Variant",
+    "splice_donor_variant": "Splice Donor Variant",
+    "stop_gained": "Nonsense",
+    "frameshift_variant": "Frameshift Variant",
+    "stop_lost": "Stop Lost",
+    "start_lost": "Start Lost",
+    "transcript_amplification": "Transcript Amplification",
+    "feature_elongation": "Feature Elongation",
+    "feature_truncation": "Feature Truncation",
+    "inframe_insertion": "Inframe Insertion",
+    "inframe_deletion": "Inframe Deletion",
+    "missense_variant": "Missense Variant",
+    "protein_altering_variant": "Protein Altering Variant",
+    "splice_donor_5th_base_variant": "Splice Donor Variant",
+    "splice_region_variant": "Splice Region Variant",
+    "splice_donor_region_variant": "Splice Region Variant", # XXX
+    "splice_polypyrimidine_tract_variant": "consequence", # XXX
+    "incomplete_terminal_codon_variant": "Incomplete Terminal Codon Variant",
+    "start_retained_variant": "Start Retained Variant",
+    "stop_retained_variant": "Stop Retained Variant",
+    "synonymous_variant": "Synonymous Variant",
+    "coding_sequence_variant": "Coding Sequence Variant",
+    "mature_miRNA_variant": "Mature miRNA Variant",
+    "5_prime_UTR_variant": "5 Prime UTR Variant",
+    "3_prime_UTR_variant": "3 Prime UTR Variant",
+    "non_coding_transcript_exon_variant": "Non Coding Transcript Exon Variant",
+    "intron_variant": "Intron Variant",
+    "NMD_transcript_variant": "NMD Transcript Variant",
+    "non_coding_transcript_variant": "Non Coding Transcript Variant",
+    "coding_transcript_variant": "Coding Sequence Variant",
+    "upstream_gene_variant": "Upstream Gene Variant",
+    "downstream_gene_variant": "Downstream Gene Variant",
+    "TFBS_ablation": "TFBS Ablation",
+    "TFBS_amplification": "TFBS Amplification",
+    "TF_binding_site_variant": "TF Binding Site Variant",
+    "regulatory_region_ablation": "Regulatory Region Ablation",
+    "regulatory_region_amplification": "Regulatory Region Amplification",
+    "regulatory_region_variant": "Regulatory Region Variant",
+    "intergenic_variant": "Intergenic Variant",
+    "sequence_variant": "Coding Sequence Variant",
 }
 
 def get_loinc_info(code):
@@ -98,7 +98,7 @@ def get_loinc_info(code):
         raise RuntimeError("Invalid LOINC code")
 
 class VarSeqInfo():
-    def __init__(self, varseq_json):
+    def __init__(self, varseq_json, pt_info=None):
         self.obx_idx = 0
         self.varseq_json = varseq_json
         self.sample_info = self.varseq_json["sampleState"]
@@ -118,7 +118,7 @@ class VarSeqInfo():
         self.norm_order_num = self.get_custom_field("N_OrderID")
         self.norm_date_ordered = self.format_msh_date(self.get_custom_field("N_DateOrdered").split(" ")[0])
         self.norm_date_received = self.format_msh_date(self.get_custom_field("N_DateReceived").split(" ")[0])
-    
+
     def get_obx_idx(self):
         self.obx_idx += 1
         return self.obx_idx
@@ -226,9 +226,16 @@ class VarSeqInfo():
             return "<LoD"
         else:
             return rounded_naf
-        
-    def get_effect_and_dna_change(self, variant):
-        return SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"], ("", ""))
+
+    def get_consequence(self, variant):
+        return SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"], "")
+
+    def is_subst(self, variant):
+        ref, alt = map(lambda b: b.replace('-', ''), variant["refAlt"].split("/"))
+        return len(alt) == len(ref)
+
+    def get_dna_change(self, variant):
+        return "Substitution" if self.is_subst(variant) else "Insertion/Deletion"
 
     def get_variant_obx(self, variant_id, loinc_code, value):
         return f"""OBX|{self.get_obx_idx()}|{get_loinc_info(loinc_code)}|{variant_id}|{value}"""
@@ -243,7 +250,8 @@ class VarSeqInfo():
         variant_id = get_variant_id(idx)
         get_variant_obx = self.get_variant_obx_function(variant_id)
         pDot = variant["pDotThreeLetter"] if variant["pDotThreeLetter"] else "p.?"
-        mol_consequence, dna_change_type = self.get_effect_and_dna_change(variant)
+        consequence = self.get_consequence(variant)
+        dna_change = self.get_dna_change(variant)
         obxs =  [
             get_variant_obx("47998-0", display_name), # Variant Display Name
             get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
@@ -263,8 +271,8 @@ class VarSeqInfo():
             get_variant_obx("52250046", variant["proteinId"]),
             get_variant_obx("81290-9", variant["gDot"]), # Genomic DNA Change g.HGVS
             get_variant_obx("81254-5", f"{variant['start']}^{variant['stop']}"), # Genomic Allele Start-End
-            get_variant_obx("48006-1", mol_consequence),
-            get_variant_obx("48019-4", dna_change_type),
+            get_variant_obx("48006-1", consequence),
+            get_variant_obx("48019-4", dna_change),
         ]
         return "\r\n".join(obxs) + "\r\n"
 
