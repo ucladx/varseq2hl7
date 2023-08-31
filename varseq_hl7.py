@@ -61,8 +61,8 @@ SEQ_ONTOLOGY_MAP = {
     "protein_altering_variant": "Protein Altering Variant",
     "splice_donor_5th_base_variant": "Splice Donor Variant",
     "splice_region_variant": "Splice Region Variant",
-    "splice_donor_region_variant": "Splice Region Variant", # XXX
-    "splice_polypyrimidine_tract_variant": "consequence", # XXX
+    "splice_donor_region_variant": "Splice Region Variant",
+    "splice_polypyrimidine_tract_variant": "Splice Region Variant",
     "incomplete_terminal_codon_variant": "Incomplete Terminal Codon Variant",
     "start_retained_variant": "Start Retained Variant",
     "stop_retained_variant": "Stop Retained Variant",
@@ -196,7 +196,6 @@ class VarSeqInfo():
         else:
             return "Unknown"
 
-    # TODO test if EPIC can do this automatically with HTML tags
     def insert_newlines(self, s, every=110):
         return '\.br\\'.join(wrap(s, every))
 
@@ -228,7 +227,11 @@ class VarSeqInfo():
             return rounded_naf
 
     def get_consequence(self, variant):
-        return SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"], "")
+        cons =  SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"])
+        if cons:
+            return cons
+        else:
+            raise Exception(f"SequenceOntology term {variant['sequenceOntology']} not found")
 
     def is_subst(self, variant):
         ref, alt = map(lambda b: b.replace('-', ''), variant["refAlt"].split("/"))
