@@ -36,10 +36,10 @@ LOINCS = {
     "93364-8": ["Genetic Variant Diagnostic Significance", "ST"],
     "48002-0": ["Genomic Source Class", "CWE"],
     "48019-4": ["DNA Change [Type]", "CWE"],
-    "51958-7": ["Transcript Reference Sequence", "ST"],
+    "51958-7": ["Transcript Reference Sequence", "CWE"],
     "52250046": ["Protein Reference Sequence", "ST"],
     "81290-9": ["Genomic DNA Change g.HGVS", "ST"],
-    "81254-5": ["Genomic Allele Start-End", "ST"],
+    "81254-5": ["Genomic Allele Start-End", "NM"],
     "53034-5": ["Allelic State", "CWE"],
 }
 
@@ -137,8 +137,9 @@ class VarSeqInfo():
 
     def get_all_variants(self):
         all_variants = self.get_biomarkers() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        variant_vaf_dict = {variant: variant["vaf"] for variant in all_variants}
-        return sorted(all_variants, key=lambda variant: variant_vaf_dict[variant], reverse=True)
+        variant_vafs = [(variant, variant["vaf"]) for variant in all_variants]
+        variant_vafs.sort(key=lambda x: x[1], reverse=True)
+        return [variant_vaf[0] for variant_vaf in variant_vafs]
         # return self.get_biomarkers() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
 
     def get_sig(self, sig_name):
@@ -270,14 +271,14 @@ class VarSeqInfo():
             get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
             get_variant_obx("93364-8", self.get_interp(variant)), # Genetic Variant Diagnostic Significance
             get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
-            get_variant_obx("51958-7", variant["transcriptName"]),
-            get_variant_obx("52250046", variant["proteinId"]),
+            get_variant_obx("51958-7", f"^{variant['transcriptName']}^"),
+            # get_variant_obx("52250046", variant["proteinId"]),
             get_variant_obx("81290-9", variant["gDot"]), # Genomic DNA Change g.HGVS
             get_variant_obx("81254-5", f"{variant['start']}^{variant['stop']}"), # Genomic Allele Start-End
-            get_variant_obx("48006-1", consequence),
-            get_variant_obx("48019-4", dna_change),
+            get_variant_obx("48006-1", f"^{consequence}"),
+            get_variant_obx("48019-4", f"^{dna_change}"),
         ]
-        return "\r\n".join(obxs) + "\r\n"
+        return "\r\n".join(obxs)
 
     # While we send these variants in the tumor's HL7 message, we send them again here for the normal sample so we can get the normal allele frequency
     def get_normal_variant_obxs(self, variant, idx):
@@ -295,7 +296,7 @@ class VarSeqInfo():
             get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
             get_variant_obx("53034-5", variant["zygosity"]),
         ]
-        return "\r\n".join(obxs) + "\r\n"
+        return "\r\n".join(obxs)
 
     def get_hl7_header(self):
         self.reset_obx_idx()
@@ -326,7 +327,12 @@ def get_hl7_msg(vsinfo):
     return vsinfo.get_hl7_header() + vsinfo.get_hl7_variants()
 
 def get_normal_hl7_msg(vsinfo):
-    return vsinfo.get_normal_hl7_header() + vsinfo.get_normal_hl7_variants()
+    header = vsinfo.get_normal_hl7_header()
+    normal_variants = vsinfo.get_normal_hl7_variants()
+    if normal_variants:
+        return header + normal_variants
+    else:
+        return ""
 
 def create_hl7_msgs(vs_json):
     vsinfo = VarSeqInfo(vs_json)
@@ -336,15 +342,16 @@ def create_hl7_msgs(vs_json):
 def send_hl7_msgs(vs_json):
     tumor_msg, normal_msg = create_hl7_msgs(vs_json)
     hostname = "interface-test.mednet.ucla.edu"
-    port = 17199
+    port = 7199
 
-    # with open("./hl7_msg_N.txt", "w") as f:
-    #     f.write(normal_msg)
-    # with open("./hl7_msg_T.txt", "w") as f:
-    #     f.write(tumor_msg)
+    with open("./hl7_msg_T.txt", "w") as f:
+        f.write(tumor_msg)
     # sends messages and prints the corresponding acks from Beaker
     print(hl7.client.MLLPClient(hostname, port).send_message(tumor_msg))
-    print(hl7.client.MLLPClient(hostname, port).send_message(normal_msg))
+    if normal_msg:
+        with open("./hl7_msg_N.txt", "w") as f:
+            f.write(normal_msg)
+        print(hl7.client.MLLPClient(hostname, port).send_message(normal_msg))
     return vs_json
 
 app = Flask(__name__)
