@@ -37,10 +37,12 @@ LOINCS = {
     "48002-0": ["Genomic Source Class", "CWE"],
     "48019-4": ["DNA Change [Type]", "CWE"],
     "51958-7": ["Transcript Reference Sequence", "CWE"],
-    "52250046": ["Protein Reference Sequence", "ST"],
+    "7400052": ["Protein Reference Sequence", "ST"],
     "81290-9": ["Genomic DNA Change g.HGVS", "ST"],
-    "81254-5": ["Genomic Allele Start-End", "NM"],
+    "81254-5": ["Genomic Allele Start-End", "NR"],
     "53034-5": ["Allelic State", "CWE"],
+    "69547-8": ["Genomic Reference Allele", "ST"],
+    "69551-0": ["Genomic Alternate Allele", "ST"],
 }
 
 # Sequence Ontology -> EPIC molecular consequence and DNA change type
@@ -256,6 +258,7 @@ class VarSeqInfo():
         pDot = variant["pDotThreeLetter"] if variant["pDotThreeLetter"] else "p.?"
         consequence = self.get_consequence(variant)
         dna_change = self.get_dna_change(variant)
+        ref, alt = map(lambda b: b.replace('-', ''), variant["refAlt"].split("/"))
         obxs =  [
             get_variant_obx("47998-0", display_name), # Variant Display Name
             get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
@@ -271,10 +274,12 @@ class VarSeqInfo():
             get_variant_obx("69548-6", "Detected"), # Genetic Variant Assessment
             get_variant_obx("93364-8", self.get_interp(variant)), # Genetic Variant Diagnostic Significance
             get_variant_obx("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
-            get_variant_obx("51958-7", f"^{variant['transcriptName']}^"),
-            # get_variant_obx("52250046", variant["proteinId"]),
+            get_variant_obx("51958-7", f"{variant['transcriptName']}^{variant['transcriptName']}^RefSeq-T"), # Transcript Reference Sequence
+            get_variant_obx("7400052", variant["proteinId"]),
             get_variant_obx("81290-9", variant["gDot"]), # Genomic DNA Change g.HGVS
             get_variant_obx("81254-5", f"{variant['start']}^{variant['stop']}"), # Genomic Allele Start-End
+            get_variant_obx("69547-8", ref), # Genomic Reference Allele
+            get_variant_obx("69551-0", alt), # Genomic Alternate Allele
             get_variant_obx("48006-1", f"^{consequence}"),
             get_variant_obx("48019-4", f"^{dna_change}"),
         ]
