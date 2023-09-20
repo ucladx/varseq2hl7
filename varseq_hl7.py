@@ -43,6 +43,10 @@ LOINCS = {
     "53034-5": ["Allelic State", "CWE"],
     "69547-8": ["Genomic Reference Allele", "ST"],
     "69551-0": ["Genomic Alternate Allele", "ST"],
+    "7102423": ["20x Depth Percentage", "ST"],
+    "7102424": ["200x Depth Percentage", "ST"],
+    "7102425": ["500x Depth Percentage", "ST"],
+    "7102426": ["Mean Depth", "ST"],
 }
 
 # Sequence Ontology -> EPIC molecular consequence and DNA change type
@@ -305,13 +309,18 @@ class VarSeqInfo():
 
     def get_hl7_header(self):
         self.reset_obx_idx()
+        bases_20x, bases_200x, bases_500x, covg_mean = self.get_covg_metrics()
         return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
 PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
 ORC|RE\r
 OBR|1|{self.order_num}|{self.sample_id}^Beaker|LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.date_received}|||F\r
 {self.get_variant_obx("2a", "7102415", f"^{self.get_tumor_type()}")}\r
 {self.get_variant_obx("2a", "81695-9", f"^{self.get_msi()}")}\r
-{self.get_variant_obx("2a", "94076-7", f"{self.get_tmb()}")}\r"""
+{self.get_variant_obx("2a", "94076-7", f"{self.get_tmb()}")}\r
+{self.get_variant_obx("2a", "7102423", bases_20x)}\r
+{self.get_variant_obx("2a", "7102424", bases_200x)}\r
+{self.get_variant_obx("2a", "7102425", bases_500x)}\r
+{self.get_variant_obx("2a", "7102426", covg_mean)}\r"""
 
     def get_normal_hl7_header(self):
         self.reset_obx_idx()
