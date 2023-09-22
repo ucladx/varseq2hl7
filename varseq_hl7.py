@@ -262,7 +262,7 @@ class VarSeqInfo():
         pDot = variant["pDotThreeLetter"] if variant["pDotThreeLetter"] else "p.?"
         consequence = self.get_consequence(variant)
         dna_change = self.get_dna_change(variant)
-        ref, alt = map(lambda b: b.replace('-', ''), variant["refAlt"].split("/"))
+        ref, alt = variant["refAlt"].split("/")
         obxs =  [
             get_variant_obx("47998-0", display_name), # Variant Display Name
             get_variant_obx("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
