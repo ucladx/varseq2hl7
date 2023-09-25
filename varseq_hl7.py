@@ -62,7 +62,9 @@ SEQ_ONTOLOGY_MAP = {
     "feature_elongation": "Feature Elongation",
     "feature_truncation": "Feature Truncation",
     "inframe_insertion": "Inframe Insertion",
+    "disruptive_inframe_insertion": "Inframe Insertion",
     "inframe_deletion": "Inframe Deletion",
+    "disruptive_inframe_deletion": "Inframe Deletion",
     "missense_variant": "Missense Variant",
     "protein_altering_variant": "Protein Altering Variant",
     "splice_donor_5th_base_variant": "Splice Donor Variant",
@@ -74,6 +76,7 @@ SEQ_ONTOLOGY_MAP = {
     "stop_retained_variant": "Stop Retained Variant",
     "synonymous_variant": "Synonymous Variant",
     "coding_sequence_variant": "Coding Sequence Variant",
+    "initiator_codon_variant": "Coding Sequence Variant",
     "mature_miRNA_variant": "Mature miRNA Variant",
     "5_prime_UTR_variant": "5 Prime UTR Variant",
     "3_prime_UTR_variant": "3 Prime UTR Variant",
@@ -138,15 +141,14 @@ class VarSeqInfo():
         return list(biomarkers)
 
     def get_germline_variants(self):
-        germline_biomarkers = filter(lambda x: x["tags"][0]["initials"] == "GL", self.get_all_variants())
+        germline_biomarkers = filter(lambda x: self.get_variant_type(x) == "Germline", self.get_all_variants())
         return list(germline_biomarkers) + self.varseq_json["germlineVariants"]
 
     def get_all_variants(self):
         all_variants = self.get_biomarkers() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        variant_vafs = [(variant, variant["vaf"]) for variant in all_variants]
-        variant_vafs.sort(key=lambda x: x[1], reverse=True)
-        return [variant_vaf[0] for variant_vaf in variant_vafs]
-        # return self.get_biomarkers() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
+        variants_vafs = [(variant, variant["vaf"]) for variant in all_variants]
+        variants_vafs.sort(key=lambda x: x[1], reverse=True) # sort variants by VAF
+        return [variant_vaf[0] for variant_vaf in variants_vafs]
 
     def get_sig(self, sig_name):
         for biomarker in self.varseq_json["biomarkers"]:
@@ -160,6 +162,14 @@ class VarSeqInfo():
     def get_tmb(self):
         return self.get_sig("TMB")
 
+    def get_covg_metrics(self):
+        bases_20x = self.varseq_json["coverageSummary"]["basesAt20x"]
+        bases_200x = self.varseq_json["coverageSummary"]["basesAt200x"]
+        bases_500x = self.varseq_json["coverageSummary"]["basesAt500x"]
+        covg_mean = self.varseq_json["coverageSummary"]["meanDepth"]
+        covg_mean = round(covg_mean)
+        return [round(x, 2) for x in [bases_20x, bases_200x, bases_500x, covg_mean]]
+
     def get_custom_field(self, field_name):
         fields = self.varseq_json["customFields"]
         return fields[field_name] if field_name in fields else ""
@@ -171,14 +181,19 @@ class VarSeqInfo():
         return self.get_custom_field("OrderID")
 
     def get_pt_name(self):
-        return self.varseq_json["sampleState"]["patientName"].split(" (")[0].split(",")
+        pt_name = self.varseq_json["sampleState"]["patientName"].split(" (")[0].split(",")
+        return pt_name[:2]
 
     def get_prov_name(self):
         return [fn_or_ln.strip() for fn_or_ln in self.varseq_json["sampleState"]["orderingPhysician"].split(",")][:2]
 
     def format_msh_date(self, date):
-        [m, d, y] = date.split('/')
-        return y + m + d
+        split_date = date.split("/")
+        if len(split_date) == 3:
+            m, d, y = split_date
+            return y + m + d
+        else:
+            raise Exception(f"Invalid date format: {date} from patient {self.get_pt_name()}")
 
     def get_date(self, date_type):
         return self.format_msh_date(self.varseq_json["sampleState"][date_type])
@@ -195,11 +210,13 @@ class VarSeqInfo():
             return "Tier 3: Unknown clinical significance"
         
     def get_variant_type(self, variant):
-        variant_type = variant["tags"][0]["initials"]
-        if variant_type == "SM":
-            return "Somatic"
-        elif variant_type == "GL":
-            return "Germline"
+        tags = variant["tags"]
+        if tags:
+            variant_type = variant["tags"][0]["initials"]
+            if variant_type == "SM":
+                return "Somatic"
+            elif variant_type == "GL":
+                return "Germline"
         else:
             return "Unknown"
 
@@ -356,7 +373,7 @@ def create_hl7_msgs(vs_json):
 def send_hl7_msgs(vs_json):
     tumor_msg, normal_msg = create_hl7_msgs(vs_json)
     hostname = "interface-test.mednet.ucla.edu"
-    port = 7199
+    port = 17199
 
     with open("./hl7_msg_T.txt", "w") as f:
         f.write(tumor_msg)
