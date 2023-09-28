@@ -8,12 +8,12 @@ class VarSeqInfo():
     def __init__(self, varseq_json):
         self.obx_idx = 0
         self.varseq_json = varseq_json
-        self.sample_info = varseq_json["sampleState"]
-        self.sample_id = self.sample_info["sampleName"]
-        self.mrn = self.sample_info["mrn"]
+        self.sample_state = varseq_json["sampleState"]
+        self.sample_id = self.sample_state["sampleName"]
+        self.mrn = self.sample_state["mrn"]
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
-        self.sex = self.sample_info["sex"][0]
+        self.sex = self.sample_state["sex"][0]
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
         self.prov_id = self.get_custom_field("ProviderID")
@@ -26,7 +26,7 @@ class VarSeqInfo():
         self.date_sent = self.get_date_sent()
         self.variants = self.get_all_variants()
 
-    def get_obx_idx(self):
+    def next_obx_idx(self):
         self.obx_idx += 1
         return self.obx_idx
 
@@ -40,9 +40,8 @@ class VarSeqInfo():
 
     def get_all_variants(self):
         all_variants = self.get_biomarker_variants() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        variants_vafs = [(variant, variant["vaf"]) for variant in all_variants]
-        variants_vafs.sort(key=lambda x: x[1], reverse=True) # sort variants by VAF
-        return [variant_vaf[0] for variant_vaf in variants_vafs]
+        all_variants.sort(key=lambda x: x["vaf"], reverse=True) # sort variants by descending VAF
+        return all_variants
 
     def get_sig(self, sig_name):
         for biomarker in self.varseq_json["biomarkers"]:
@@ -82,7 +81,7 @@ class VarSeqInfo():
         fn, ln = name.split(",")[:2]
         return fn.strip(), ln.strip()
 
-    def format_msh_date(self, date):
+    def format_header_date(self, date):
         split_date = date.split("/")
         if len(split_date) == 3:
             m, d, y = split_date
@@ -95,7 +94,7 @@ class VarSeqInfo():
             date = self.get_custom_field(date_type).split(" ")[0]
         else:
             date = self.varseq_json["sampleState"][date_type]
-        return self.format_msh_date(date)
+        return self.format_header_date(date)
 
     def get_date_sent(self):
         return date.today().strftime("%Y%m%d")
@@ -110,11 +109,11 @@ class VarSeqInfo():
             return "Tier 1: Strong significance"
         else:
             return "Tier 2: Potential significance"
-        
+
     def get_variant_type(self, variant):
         tags = variant["tags"]
-        if tags:
-            type_initials = variant["tags"][0]["initials"]
+        if tags and len(tags) == 1:
+            type_initials = tags[0]["initials"]
             if type_initials == "SM":
                 return "Somatic"
             elif type_initials == "GL":
@@ -139,7 +138,7 @@ class VarSeqInfo():
 
     def get_naf(self, variant):
         naf = variant["naf"]
-        if not naf or naf == "null" or naf < 0.02:
+        if not naf or naf == "null" or naf < 0.02: # XXX
             return "<LoD"
         else:
             return round(naf, 2)
@@ -151,18 +150,20 @@ class VarSeqInfo():
         else:
             raise RuntimeError(f"SequenceOntology term {variant['sequenceOntology']} not found")
 
-    def is_subst(self, variant):
+    def get_dna_change(self, variant):
         # count number of bases in ref and alt (excluding dashes) to determine if substitution or indel
         ref, alt = map(lambda b: b.replace('-', ''), variant["refAlt"].split("/"))
-        return len(alt) == len(ref)
-
-    def get_dna_change(self, variant):
-        return "Substitution" if self.is_subst(variant) else "Insertion/Deletion"
+        return "Substitution" if len(alt) == len(ref) else "Insertion/Deletion"
 
     def get_coords(self, variant):
-        # add 1 to start position since VarSeq uses 0-based indexing for it
-        start = str(int(variant['start']) + 1)
-        return start, variant['stop']
+        # VarSeq uses 0 based coordinates for the starting position for all variants except deletions
+        # so we increment start by one to get 1-based coordinates
+        # in the case of deletions, we increment "stop" by one for congruency
+        start, stop = int(variant['start']), int(variant['stop'])
+        if start == stop: # deletion
+            return str(start), str(stop + 1)
+        else:
+            return str(start + 1), str(stop)
 
     def get_loinc_info(self, code):
         loinc_info = LOINCS.get(code)
@@ -173,7 +174,7 @@ class VarSeqInfo():
             raise RuntimeError("Invalid LOINC code: " + code)
 
     def create_obx_segment(self, variant_id, loinc_code, value):
-        return f"""OBX|{self.get_obx_idx()}|{self.get_loinc_info(loinc_code)}|{variant_id}|{value}"""
+        return f"""OBX|{self.next_obx_idx()}|{self.get_loinc_info(loinc_code)}|{variant_id}|{value}"""
 
     def get_variant_obx_function(self, variant_idx):
         variant_id = get_variant_id(variant_idx)
