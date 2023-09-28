@@ -291,8 +291,11 @@ app = Flask(__name__)
 @app.route('/receivejson', methods=['POST'])
 def receive_json():
     data = request.get_json()
-    result = send_hl7_msgs(data)
-    return jsonify(result), 200
+    if data:
+        result = send_hl7_msgs(data)
+        return jsonify(result), 200
+    else:
+        return jsonify({"error": "No JSON data received"}), 400
 
 # launches Flask server on localhost:5000
 if __name__ == '__main__':
