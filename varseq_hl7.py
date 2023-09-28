@@ -138,10 +138,7 @@ class VarSeqInfo():
 
     def get_naf(self, variant):
         naf = variant["naf"]
-        if not naf or naf == "null" or naf < 0.02: # XXX
-            return "<LoD"
-        else:
-            return round(naf, 2)
+        return round(naf, 2) if naf else 0
 
     def get_consequence(self, variant):
         cons =  SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"])
