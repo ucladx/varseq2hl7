@@ -27,7 +27,7 @@ LOINCS = {
     "83005-9": ["Variant Category", "ST"],
     "81695-9": ["Microsatellite Instability", "CWE"],
     "69548-6": ["Genetic Variant Assessment", "ST"],
-    "93364-8": ["Genetic Variant Diagnostic Significance", "ST"],
+    "93364-8": ["Genetic Variant Diagnostic Significance", "TX"],
     "48002-0": ["Genomic Source Class", "CWE"],
     "48019-4": ["DNA Change [Type]", "CWE"],
     "51958-7": ["Transcript Reference Sequence", "CWE"],

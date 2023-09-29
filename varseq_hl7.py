@@ -120,15 +120,13 @@ class VarSeqInfo():
                 return "Germline"
         return "Unknown"
 
-    def insert_newlines(self, s, every=110):
-        return '\.br\\'.join(wrap(s, every)).strip()
+    def format_interp(self, interp):
+        return interp.replace("<p>", "").replace("</p>", "").replace("<em>", "").replace("</em>", "").replace("&nbsp;", " ").replace("–", "-")
 
     def get_interp(self, variant):
         summary = variant["biomarkerSummary"]
         if summary:
-            interp = summary["interpretation"]
-            interp = interp.replace("<p>", "").replace("</p>", "").replace("<em>", "").replace("</em>", "").replace("&nbsp;", " ")
-            return self.insert_newlines(interp)
+            return self.format_interp(summary["interpretation"])
         else:
             return ""
 
@@ -180,20 +178,27 @@ class VarSeqInfo():
             return self.create_obx_segment(variant_id, loinc_code, value)
         return wrapper_func
 
+    def get_pdot(self, variant):
+        return variant["pDot"] if variant["pDot"] else "p.?"
+
+    def get_variant_display_name(self, variant):
+        pdot = self.get_pdot(variant)
+        pdot = "" if pdot == "p.?" else f"{pdot} - "
+        return f"{pdot}{variant['cDot']} {self.get_consequence(variant)}"
+
     def get_tumor_variant_obxs(self, variant, variant_idx):
         ref, alt = variant["refAlt"].split("/")
         start, stop = self.get_coords(variant)
         create_obx_segment = self.get_variant_obx_function(variant_idx)
         obxs =  [
-            create_obx_segment("47998-0", variant["geneName"]), # Variant Display Name
             create_obx_segment("48018-6", '^' + variant["geneName"] + '^'), # Variant Name (This is also a discrete field in EPIC)
+            create_obx_segment("47998-0", self.get_variant_display_name(variant)), # Variant Display Name
             create_obx_segment("81252-9", 'v1^' + variant['hgvsWithGene'] + '^ClinVar-V'), # Discrete Genetic Variant
             create_obx_segment("48002-0", '^' + self.get_variant_type(variant)), # Genomic Source Class
             create_obx_segment("53037-8", '^' + self.get_clin_sig(variant)), # Genetic Sequence Variation Clinical Significance
-            create_obx_segment("93364-8", self.get_interp(variant)), # Genetic Variant Diagnostic Significance
             create_obx_segment("81258-6", round(variant["vaf"], 2)), # Allelic Frequency
             create_obx_segment("82121-5", variant["altReadCount"]), # Allelic Read Depth
-            create_obx_segment("48005-3", variant["pDot"] if variant["pDot"] else "p.?"), # Amino Acid Change p.HGVS
+            create_obx_segment("48005-3", self.get_pdot(variant)), # Amino Acid Change p.HGVS
             create_obx_segment("48019-4", '^' + self.get_dna_change(variant)),
             create_obx_segment("48004-6", '^' + variant['cDot']), # DNA Change c.HGVS
             create_obx_segment("81290-9", variant["gDot"]), # Genomic DNA Change g.HGVS
@@ -208,6 +213,8 @@ class VarSeqInfo():
             create_obx_segment("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
             create_obx_segment("69548-6", "Detected"), # Genetic Variant Assessment
         ]
+        interp = self.get_interp(variant)
+        if interp: obxs.append(create_obx_segment("93364-8", interp))
         zyg = variant.get("zygosity")
         if zyg: obxs.append(create_obx_segment("53034-5", '^' + zyg))
         return "\r\n".join(obxs)
@@ -216,13 +223,13 @@ class VarSeqInfo():
     def get_normal_variant_obxs(self, variant, variant_idx):
         create_obx_segment = self.get_variant_obx_function(variant_idx)
         obxs =  [
-            create_obx_segment("47998-0", variant["geneName"]), # Variant Display Name
             create_obx_segment("48018-6", '^' + variant["geneName"] + '^'), # Variant Name (This is also a discrete field in EPIC)
+            create_obx_segment("47998-0", self.get_variant_display_name(variant)), # Variant Display Name
             create_obx_segment("81252-9", f"v1^{variant['hgvsWithGene']}^ClinVar-V"), # Discrete Genetic Variant
             create_obx_segment("48002-0", f"^{self.get_variant_type(variant)}"), # Genomic Source Class
             create_obx_segment("53037-8", '^' + self.get_clin_sig(variant)), # Genetic Sequence Variation Clinical Significance
             create_obx_segment("81258-6", self.get_naf(variant)), # Allelic Frequency
-            create_obx_segment("48005-3", variant["pDot"] if variant["pDot"] else "p.?"), # Amino Acid Change p.HGVS
+            create_obx_segment("48005-3", self.get_pdot(variant)), # Amino Acid Change p.HGVS
             create_obx_segment("48004-6", f"^{variant['cDot']}"), # DNA Change c.HGVS
             create_obx_segment("48000-4", self.get_chrom(variant)), # Chromosome
             create_obx_segment("48006-1", '^' + self.get_consequence(variant)),
@@ -277,11 +284,17 @@ def create_hl7_msgs(vs_json):
     return vs_info.get_tumor_msg(), vs_info.get_normal_msg()
 
 def send_hl7_msgs(vs_json):
-    hostname, port = ["interface-test.mednet.ucla.edu", 17199]
+    # hostname, port = ["interface-test.mednet.ucla.edu", 17199]
+    hostname, port = ["interface-prod.mednet.ucla.edu", 27199]
     with hl7.client.MLLPClient(hostname, port) as client:
         tumor_msg, normal_msg = create_hl7_msgs(vs_json)
+        # TODO parse for AA (good response)
+        with open("tumor_msg.txt", "w") as f:
+            f.write(tumor_msg)
         print(client.send_message(tumor_msg))
         if normal_msg:
+            with open("normal_msg.txt", "w") as f:
+                f.write(normal_msg)
             print(client.send_message(normal_msg))
     return vs_json
 
