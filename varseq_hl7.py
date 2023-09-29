@@ -13,7 +13,7 @@ class VarSeqInfo():
         self.mrn = self.sample_state["mrn"]
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
-        self.sex = self.sample_state["sex"][0]
+        self.sex = self.sample_state["sex"]
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
         self.prov_id = self.get_custom_field("ProviderID")
@@ -153,14 +153,15 @@ class VarSeqInfo():
         return "Substitution" if len(alt) == len(ref) else "Insertion/Deletion"
 
     def get_coords(self, variant):
-        # VarSeq uses 0 based coordinates for the starting position for all variants except deletions
-        # so we increment start by one to get 1-based coordinates
-        # in the case of deletions, we increment "stop" by one for congruency
+        # VarSeq usually uses 0 based coordinates for the starting position,
+        # so we increment "start" to get 1-based coordinates
+        # This is not true for insertions, so in that case we increment "stop" for congruency
         start, stop = int(variant['start']), int(variant['stop'])
-        if start == stop: # deletion
-            return str(start), str(stop + 1)
-        else:
-            return str(start + 1), str(stop)
+        if start != stop:
+            start += 1
+        else: # insertion
+            stop += 1
+        return str(start), str(stop)
 
     def get_loinc_info(self, code):
         loinc_info = LOINCS.get(code)
