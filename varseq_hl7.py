@@ -184,7 +184,7 @@ class VarSeqInfo():
     def get_variant_display_name(self, variant):
         pdot = self.get_pdot(variant)
         pdot = "" if pdot == "p.?" else f"{pdot} - "
-        return f"{pdot}{variant['cDot']} {self.get_consequence(variant)}"
+        return f"{variant['geneName']} {pdot}{variant['cDot']} {self.get_consequence(variant)}"
 
     def get_tumor_variant_obxs(self, variant, variant_idx):
         ref, alt = variant["refAlt"].split("/")
