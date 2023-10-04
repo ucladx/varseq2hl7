@@ -80,8 +80,8 @@ SEQ_ONTOLOGY_MAP = {
     "NMD_transcript_variant": "NMD Transcript Variant",
     "non_coding_transcript_variant": "Non Coding Transcript Variant",
     "coding_transcript_variant": "Coding Sequence Variant",
-    "upstream_gene_variant": "Upstream Gene Variant",
-    "downstream_gene_variant": "Downstream Gene Variant",
+    "upstream_gene_variant": "Regulatory Region Variant", # special case for TERT promoter --- upstream/downstream variants worth reporting are almost always in regulatory regions
+    "downstream_gene_variant": "Regulatory Region Variant", # see above
     "TFBS_ablation": "TFBS Ablation",
     "TFBS_amplification": "TFBS Amplification",
     "TF_binding_site_variant": "TF Binding Site Variant",
