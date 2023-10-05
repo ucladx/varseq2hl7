@@ -16,7 +16,7 @@ class VarSeqInfo():
         self.sex = self.sample_state["sex"]
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
-        self.prov_id = self.get_custom_field("ProviderID")
+        self.prov_id = self.get_prov_id()
         self.norm_sample_id = self.get_custom_field("N_SID")
         self.norm_order_num = self.get_custom_field("N_OrderID")
         self.date_ordered = self.get_date("dateOrdered")
@@ -80,6 +80,10 @@ class VarSeqInfo():
         name = self.varseq_json["sampleState"]["orderingPhysician"]
         fn, ln = name.split(",")[:2]
         return fn.strip(), ln.strip()
+
+    def get_prov_id(self):
+        id =  str(self.get_custom_field("ProviderID"))
+        return '0' + id if len(id) < 6 else id
 
     def format_header_date(self, date):
         split_date = date.split("/")
@@ -233,11 +237,12 @@ class VarSeqInfo():
             create_obx_segment("48004-6", f"^{variant['cDot']}"), # DNA Change c.HGVS
             create_obx_segment("48000-4", self.get_chrom(variant)), # Chromosome
             create_obx_segment("48006-1", '^' + self.get_consequence(variant)),
-            create_obx_segment("53034-5", f"^{variant['zygosity']}"),
             create_obx_segment("62374-4", '^' + variant['assembly']), # Human Reference Sequence Assembly Version
             create_obx_segment("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
             create_obx_segment("69548-6", "Detected"), # Genetic Variant Assessment
         ]
+        zyg = variant.get("zygosity")
+        if zyg: obxs.append(create_obx_segment("53034-5", '^' + zyg))
         return "\r\n".join(obxs)
 
     def get_tumor_msg_header(self):
@@ -273,9 +278,10 @@ OBR|1|{self.norm_order_num}|{self.norm_sample_id}^Beaker|LAB9056^Pan-cancer Pane
         return self.get_tumor_msg_header() + self.get_tumor_obxs()
 
     def get_normal_msg(self):
+        header = self.get_normal_msg_header()
         normal_obxs = self.get_normal_obxs()
         if normal_obxs:
-            return self.get_normal_msg_header() + normal_obxs
+            return header + normal_obxs
         else:
             return ""
 
@@ -292,9 +298,11 @@ def send_hl7_msgs(vs_json):
         with open("tumor_msg.txt", "w") as f:
             f.write(tumor_msg)
         print(client.send_message(tumor_msg))
+        print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
             with open("normal_msg.txt", "w") as f:
                 f.write(normal_msg)
+            print(f"Sent normal message: {normal_msg.splitlines()[3]}")
             print(client.send_message(normal_msg))
     return vs_json
 
