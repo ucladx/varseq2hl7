@@ -123,9 +123,13 @@ class VarSeqInfo():
             elif type_initials == "GL":
                 return "Germline"
         return "Unknown"
+    
+    def insert_newlines(self, s, every=110):
+        return '\.br\\'.join(wrap(s, every)).strip()
 
     def format_interp(self, interp):
-        return interp.replace("<p>", "").replace("</p>", "").replace("<em>", "").replace("</em>", "").replace("&nbsp;", " ").replace("–", "-")
+        interp = interp.replace("<p>", "").replace("</p>", "").replace("<em>", "").replace("</em>", "").replace("&nbsp;", " ").replace("–", "-")
+        return self.insert_newlines(interp)
 
     def get_interp(self, variant):
         summary = variant["biomarkerSummary"]
