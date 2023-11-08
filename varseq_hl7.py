@@ -10,7 +10,7 @@ class VarSeqInfo():
         self.varseq_json = varseq_json
         self.sample_state = varseq_json["sampleState"]
         self.sample_id = self.sample_state["sampleName"]
-        self.mrn = self.sample_state["mrn"]
+        self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
         self.sex = self.sample_state["sex"]
@@ -39,9 +39,11 @@ class VarSeqInfo():
         return list(biomarkers)
 
     def get_all_variants(self):
-        all_variants = self.get_biomarker_variants() + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
+        biomarkers = self.get_biomarker_variants()
+        biomarkers.sort(key=lambda x: x["vaf"], reverse=True)
+        all_variants = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
         all_variants.sort(key=lambda x: x["vaf"], reverse=True) # sort variants by descending VAF
-        return all_variants
+        return biomarkers + all_variants
 
     def get_sig(self, sig_name):
         for biomarker in self.varseq_json["biomarkers"]:
@@ -76,6 +78,9 @@ class VarSeqInfo():
         fn, ln = name.split(",")[:2]
         return fn, ln
 
+    def get_mrn(self):
+        return str(self.sample_state["mrn"]).zfill(7)
+
     def get_prov_name(self):
         name = self.varseq_json["sampleState"]["orderingPhysician"]
         fn, ln = name.split(",")[:2]
@@ -83,7 +88,7 @@ class VarSeqInfo():
 
     def get_prov_id(self):
         id =  str(self.get_custom_field("ProviderID"))
-        return '0' + id if len(id) < 6 else id
+        return id.zfill(6)
 
     def format_header_date(self, date):
         split_date = date.split("/")
