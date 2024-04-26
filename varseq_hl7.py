@@ -4,6 +4,9 @@ from datetime import date
 from textwrap import wrap
 from mappings import LOINCS, SEQ_ONTOLOGY_MAP, get_variant_id
 
+HOSTNAME = "interface-prod.mednet.ucla.edu"
+PORT = 27199
+
 class VarSeqInfo():
     def __init__(self, varseq_json):
         self.obx_idx = 0
@@ -299,20 +302,17 @@ def create_hl7_msgs(vs_json):
     return vs_info.get_tumor_msg(), vs_info.get_normal_msg()
 
 def send_hl7_msgs(vs_json):
-    # hostname, port = ["interface-test.mednet.ucla.edu", 17199]
-    hostname, port = ["interface-prod.mednet.ucla.edu", 27199]
-    with hl7.client.MLLPClient(hostname, port) as client:
+    with hl7.client.MLLPClient(HOSTNAME, PORT) as client:
         tumor_msg, normal_msg = create_hl7_msgs(vs_json)
-        # TODO parse for AA (good response)
-        with open("tumor_msg.txt", "w") as f:
-            f.write(tumor_msg)
+        # with open("tumor_msg.txt", "w") as f:
+        #     f.write(tumor_msg)
         print(client.send_message(tumor_msg))
         print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
-            with open("normal_msg.txt", "w") as f:
-                f.write(normal_msg)
-            print(f"Sent normal message: {normal_msg.splitlines()[3]}")
+            # with open("normal_msg.txt", "w") as f:
+            #     f.write(normal_msg)
             print(client.send_message(normal_msg))
+            print(f"Sent normal message: {normal_msg.splitlines()[3]}")
     return vs_json
 
 app = Flask(__name__)

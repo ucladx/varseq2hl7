@@ -44,7 +44,7 @@ LOINCS = {
     "7102426": ["Mean Depth", "ST"],
 }
 
-# Sequence Ontology -> EPIC molecular consequence and DNA change type
+# Maps Sequence Ontology Terms to EPIC molecular consequence and DNA change type
 SEQ_ONTOLOGY_MAP = {
     "transcript_ablation": "Transcript Ablation",
     "splice_acceptor_variant": "Splice Acceptor Variant",
