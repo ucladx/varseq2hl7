@@ -1,8 +1,12 @@
 from subprocess import run
+import argparse
 
-# given a list of file paths to VarSeq JSONs, send them to the flask server that sends HL7 messages to beaker
+# given a list of file paths to VarSeq JSONs (hl7_jsons.txt), send them to the flask server that sends HL7 messages to beaker
+parser = argparse.ArgumentParser(description='Send VarSeq JSONs to Flask server')
+parser.add_argument('--jsons_file', help='Path to the file containing the list of VarSeq JSONs')
+args = parser.parse_args()
 
-with open("hl7_jsons.txt", "r") as f:
+with open(args.jsons_file, "r") as f:
 	jsons = f.readlines()
 	for j in jsons:
 		j = j.strip()

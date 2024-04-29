@@ -3,9 +3,15 @@ from flask import Flask, request, jsonify
 from datetime import date
 from textwrap import wrap
 from mappings import LOINCS, SEQ_ONTOLOGY_MAP, get_variant_id
+import argparse
 
-HOSTNAME = "interface-prod.mednet.ucla.edu"
-PORT = 27199
+parser = argparse.ArgumentParser(description='HL7 Server')
+parser.add_argument('--hostname', type=str, help='Hostname of the server')
+parser.add_argument('--port', type=int, help='Port number of the server')
+args = parser.parse_args()
+
+HOSTNAME = args.hostname
+PORT = args.port
 
 class VarSeqInfo():
     def __init__(self, varseq_json):
