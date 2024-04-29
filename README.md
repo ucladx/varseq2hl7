@@ -1,6 +1,6 @@
 ### Goal
 
-Convert discrete genomic results in JSONs from [VarSeq VSClinical](https://www.goldenhelix.com/blog/versatile-ngs-exports-with-vsclinicals-custom-scripts/) to HL7v2 messages compatible with EPIC's [DiscreteGenomicResults](https://open.epic.com/Interface/HL7v2#DiscreteGenomicResults) interface.
+Convert discrete genomic results in JSONs from [VarSeq VSClinical](https://www.goldenhelix.com/products/VarSeq/vsclinical.html) to HL7v2 messages compatible with EPIC's [DiscreteGenomicResults](https://open.epic.com/Interface/HL7v2#DiscreteGenomicResults) interface.
 
 ### Scope
 
