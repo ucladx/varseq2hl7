@@ -103,6 +103,8 @@ class VarSeqInfo():
         split_date = date.split("/")
         if len(split_date) == 3:
             m, d, y = split_date
+            if len(m) == 1: m = "0" + m
+            if len(d) == 1: d = "0" + d
             return y + m + d
         else:
             raise Exception(f"Invalid date format: {date} found in JSON for {self.sample_id}, patient name: {self.pt_fn} {self.pt_ln}")
