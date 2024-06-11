@@ -28,8 +28,8 @@ class VarSeqInfo():
         self.prov_id = self.get_prov_id()
         self.norm_sample_id = self.get_custom_field("N_SID")
         self.norm_order_num = self.get_custom_field("N_OrderID")
-        self.date_ordered = self.get_date("dateOrdered")
-        self.date_received = self.get_date("dateReceived")
+        self.date_ordered = self.get_date("DateOrdered")
+        self.date_received = self.get_date("DateReceived")
         self.norm_date_ordered = self.get_date("N_DateOrdered")
         self.norm_date_received = self.get_date("N_DateReceived")
         self.date_sent = self.get_date_sent()
@@ -108,10 +108,11 @@ class VarSeqInfo():
             raise Exception(f"Invalid date format: {date} found in JSON for {self.sample_id}, patient name: {self.pt_fn} {self.pt_ln}")
 
     def get_date(self, date_type):
-        if date_type.startswith("N_"):
-            date = self.get_custom_field(date_type).split(" ")[0]
-        else:
-            date = self.varseq_json["sampleState"][date_type]
+        date = self.get_custom_field(date_type).split(" ")[0]
+        # if date_type.startswith("N_") or date_type.startswith("Date"):
+        #     date = self.get_custom_field(date_type).split(" ")[0]
+        # else:
+        #     date = self.varseq_json["sampleState"][date_type]
         return self.format_header_date(date)
 
     def get_date_sent(self):
