@@ -49,7 +49,7 @@ SEQ_ONTOLOGY_MAP = {
     "transcript_ablation": "Transcript Ablation",
     "splice_acceptor_variant": "Splice Acceptor Variant",
     "splice_donor_variant": "Splice Donor Variant",
-    "stop_gained": "Nonsense Variant",
+    "stop_gained": "Nonsense",
     "frameshift_variant": "Frameshift Variant",
     "stop_lost": "Stop Lost",
     "start_lost": "Start Lost",
