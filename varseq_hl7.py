@@ -209,7 +209,10 @@ class VarSeqInfo():
     def get_variant_display_name(self, variant):
         pdot = self.get_pdot(variant)
         pdot = "" if pdot == "p.?" else f"{pdot} - "
-        return f"{variant['geneName']} {pdot}{variant['cDot']} {self.get_consequence(variant)}"
+        molecular_cons = self.get_consequence(variant)
+        if molecular_cons == "Nonsense":
+            molecular_cons = "Nonsense Variant"
+        return f"{variant['geneName']} {pdot}{variant['cDot']} {molecular_cons}"
 
     def get_tumor_variant_obxs(self, variant, variant_idx):
         ref, alt = variant["refAlt"].split("/")
