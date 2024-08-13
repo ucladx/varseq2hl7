@@ -1,9 +1,10 @@
 import hl7.client
+import pandas as pd
+import argparse
 from flask import Flask, request, jsonify
 from datetime import date
 from textwrap import wrap
 from mappings import LOINCS, SEQ_ONTOLOGY_MAP, get_variant_id
-import argparse
 
 parser = argparse.ArgumentParser(description='HL7 Server')
 parser.add_argument('--hostname', type=str, help='Hostname of the server')
@@ -12,13 +13,17 @@ args = parser.parse_args()
 
 HOSTNAME = args.hostname
 PORT = args.port
+SAMPLEINFO = "/mnt/pns/vcfs/pcp_master_sampleinfo.tsv"
 
 class VarSeqInfo():
     def __init__(self, varseq_json):
+
         self.obx_idx = 0
         self.varseq_json = varseq_json
         self.sample_state = varseq_json["sampleState"]
         self.sample_id = self.sample_state["sampleName"]
+        if SAMPLEINFO:
+            self.sampleinfo = self.get_sampleinfo(SAMPLEINFO, self.sample_id)
         self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
@@ -74,12 +79,24 @@ class VarSeqInfo():
         covg_mean = round(covg_summary["meanDepth"])
         return [round(x, 2) for x in [bases_20x, bases_200x, bases_500x, covg_mean]]
 
+    def get_sampleinfo(self, beaker_extract, sample_id):
+        df = pd.read_csv(beaker_extract, sep='\t')
+        sample_row = df.loc[df['Samples'] == sample_id]
+        if not sample_row.empty:
+            sampleinfo_dict = sample_row.to_dict(orient='records')[0]
+            # remove spaces from keys to match JSON keys
+            sampleinfo_dict = {k.replace(" ", ""): v for k, v in sampleinfo_dict.items()}
+            return sampleinfo_dict
+        else:
+            return {}
+
     def get_custom_field(self, field_name):
         custom_fields = self.varseq_json["customFields"]
-        if field_name in custom_fields:
-            return custom_fields[field_name]
-        else:
-            return ""
+        field = custom_fields.get(field_name, "")
+        if not field:
+            if self.sampleinfo and field_name in self.sampleinfo:
+                field = self.sampleinfo[field_name]
+        return field
 
     def get_pt_name(self):
         # patient names are in the format "Last, First (MRN)"
@@ -92,6 +109,8 @@ class VarSeqInfo():
 
     def get_prov_name(self):
         name = self.varseq_json["sampleState"]["orderingPhysician"]
+        if not name:
+            name = self.sampleinfo["OrderingPhysician"]
         fn, ln = name.split(",")[:2]
         return fn.strip(), ln.strip()
 
@@ -111,10 +130,6 @@ class VarSeqInfo():
 
     def get_date(self, date_type):
         date = self.get_custom_field(date_type).split(" ")[0]
-        # if date_type.startswith("N_") or date_type.startswith("Date"):
-        #     date = self.get_custom_field(date_type).split(" ")[0]
-        # else:
-        #     date = self.varseq_json["sampleState"][date_type]
         return self.format_header_date(date)
 
     def get_date_sent(self):
@@ -316,13 +331,13 @@ def create_hl7_msgs(vs_json):
 def send_hl7_msgs(vs_json):
     with hl7.client.MLLPClient(HOSTNAME, PORT) as client:
         tumor_msg, normal_msg = create_hl7_msgs(vs_json)
-        # with open("tumor_msg.txt", "w") as f:
-        #     f.write(tumor_msg)
+        with open("tumor_msg.txt", "w") as f:
+            f.write(tumor_msg)
         print(client.send_message(tumor_msg))
         print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
-            # with open("normal_msg.txt", "w") as f:
-            #     f.write(normal_msg)
+            with open("normal_msg.txt", "w") as f:
+                f.write(normal_msg)
             print(client.send_message(normal_msg))
             print(f"Sent normal message: {normal_msg.splitlines()[3]}")
     return vs_json
@@ -339,4 +354,4 @@ def receive_json():
 
 # launches Flask server on localhost:5000
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5150)
