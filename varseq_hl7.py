@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify
 from datetime import date
 from textwrap import wrap
 from mappings import LOINCS, SEQ_ONTOLOGY_MAP, get_variant_id
-
 parser = argparse.ArgumentParser(description='HL7 Server')
 parser.add_argument('--hostname', type=str, help='Hostname of the server')
 parser.add_argument('--port', type=int, help='Port number of the server')
@@ -27,7 +26,7 @@ class VarSeqInfo():
         self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
-        self.sex = self.sample_state["sex"]
+        self.sex = self.get_sex(self.sample_state["sex"])
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
         self.prov_id = self.get_prov_id()
@@ -71,6 +70,12 @@ class VarSeqInfo():
     def get_tmb(self):
         return self.get_sig("TMB")
 
+    def get_sex(self, sex):
+        if sex == "Female" or sex == "Male":
+            return sex[0]
+        else:
+            return "O"
+
     def get_covg_metrics(self):
         covg_summary = self.varseq_json["coverageSummary"]
         bases_20x = covg_summary["basesAt20x"]
@@ -96,6 +101,8 @@ class VarSeqInfo():
         if not field:
             if self.sampleinfo and field_name in self.sampleinfo:
                 field = self.sampleinfo[field_name]
+        if isinstance(field, float):
+            return str(int(field))
         return field
 
     def get_pt_name(self):
@@ -330,16 +337,15 @@ def create_hl7_msgs(vs_json):
 
 def send_hl7_msgs(vs_json):
     with hl7.client.MLLPClient(HOSTNAME, PORT) as client:
+        sample_id = vs_json["sampleState"]["sampleName"]
         tumor_msg, normal_msg = create_hl7_msgs(vs_json)
-        with open("tumor_msg.txt", "w") as f:
+        with open(f"{sample_id}_tumor_msg.txt", "w") as f:
             f.write(tumor_msg)
         print(client.send_message(tumor_msg))
-        print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
-            with open("normal_msg.txt", "w") as f:
+            with open(f"{sample_id}_normal_msg.txt", "w") as f:
                 f.write(normal_msg)
             print(client.send_message(normal_msg))
-            print(f"Sent normal message: {normal_msg.splitlines()[3]}")
     return vs_json
 
 app = Flask(__name__)
