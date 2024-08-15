@@ -22,7 +22,7 @@ class VarSeqInfo():
         self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
-        self.sex = self.sample_state["sex"]
+        self.sex = self.get_sex(self.sample_state["sex"])
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
         self.prov_id = self.get_prov_id()
@@ -59,6 +59,13 @@ class VarSeqInfo():
             if biomarker["type"] == "SIGNATURE" and biomarker["geneName"] == sig_name:
                 return biomarker["quantitativeValue"]
         return ""
+
+    def get_sex(self, sex):
+        if sex == "Female" or sex == "Male":
+            return sex[0]
+        else:
+            return "O"
+
 
     def get_msi(self): 
         return self.get_sig("MSI")
