@@ -336,16 +336,16 @@ def create_hl7_msgs(vs_json):
     return vs_info.get_tumor_msg(), vs_info.get_normal_msg()
 
 def send_hl7_msgs(vs_json):
-    with hl7.client.MLLPClient(HOSTNAME, PORT) as client:
-        sample_id = vs_json["sampleState"]["sampleName"]
-        tumor_msg, normal_msg = create_hl7_msgs(vs_json)
-        with open(f"{sample_id}_tumor_msg.txt", "w") as f:
-            f.write(tumor_msg)
-        print(client.send_message(tumor_msg))
-        if normal_msg:
-            with open(f"{sample_id}_normal_msg.txt", "w") as f:
-                f.write(normal_msg)
-            print(client.send_message(normal_msg))
+    # with hl7.client.MLLPClient(HOSTNAME, PORT) as client:
+    sample_id = vs_json["sampleState"]["sampleName"]
+    tumor_msg, normal_msg = create_hl7_msgs(vs_json)
+    with open(f"{sample_id}_tumor_msg.txt", "w") as f:
+        f.write(tumor_msg)
+    # print(client.send_message(tumor_msg))
+    if normal_msg:
+        with open(f"{sample_id}_normal_msg.txt", "w") as f:
+            f.write(normal_msg)
+        # print(client.send_message(normal_msg))
     return vs_json
 
 app = Flask(__name__)
@@ -358,6 +358,6 @@ def receive_json():
     else:
         return jsonify({"error": "No JSON data received"}), 400
 
-# launches Flask server on localhost:5000
+# launches Flask server
 if __name__ == '__main__':
     app.run(debug=True, port=5150)
