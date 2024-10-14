@@ -18,7 +18,7 @@ class VarSeqInfo():
         self.obx_idx = 0
         self.varseq_json = varseq_json
         self.sample_state = varseq_json["sampleState"]
-        self.sample_id = self.sample_state["sampleName"]
+        self.sample_id = self.sample_state["sampleName"].rstrip('R')
         self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
@@ -26,7 +26,7 @@ class VarSeqInfo():
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
         self.prov_id = self.get_prov_id()
-        self.norm_sample_id = self.get_custom_field("N_SID")
+        self.norm_sample_id = self.get_custom_field("N_SID").rstrip('R')
         self.norm_order_num = self.get_custom_field("N_OrderID")
         self.date_ordered = self.get_date("DateOrdered")
         self.date_received = self.get_date("DateReceived")
