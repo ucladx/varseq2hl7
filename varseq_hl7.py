@@ -66,7 +66,6 @@ class VarSeqInfo():
         else:
             return "O"
 
-
     def get_msi(self): 
         return self.get_sig("MSI")
 

@@ -1,5 +1,3 @@
-// import { exec } from '/tmp/child_process.js';
-
 async function sendJSON(jsonData, url) {
     const response = await fetch(url, {
         method: 'POST',
