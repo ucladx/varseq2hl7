@@ -16,7 +16,7 @@ async function sendJSON(jsonData, url) {
 
 
 export default {
-    description: 'Add NAF and send an HL7 message to Beaker',
+    description: 'Add SV VAF (if present) to variants, then send an HL7 message to Beaker',
     inputFileNamesTemplate: ['{sampleName}.json'],
     outputFileNamesTemplate: ['{sampleName}_enhanced.json'],
 
@@ -27,10 +27,10 @@ export default {
         const [sampleReportDataString] = templatedInputs;
         const reportData = JSON.parse(sampleReportDataString);
         console.log("Rendering report in Beaker...");
-        // Add NAF and NDP to variants
+        // Add SV VAF to variants
         for(const variant of reportData.biomarkers.concat(reportData.germlineVariants.concat(reportData.uncertainVariants))) {
-            variant.naf = null;
-            variant.ndp = null;
+            variant.sv_vaf = null;
+            variant.sv_reads = null;
             const { projectTableUuid, projectTableRecordId} = variant;
             if (!projectTableUuid) {
                 continue;
@@ -41,33 +41,27 @@ export default {
                 continue;
             }
             const variantInfoSource = sources[0];
-            const recordNAF = await api.projectTableRecords({
+            const recordSR = await api.projectTableRecords({
                 sourceUrl: variantInfoSource.url,
                 recordId: projectTableRecordId,
                 sampleId: reportData.sampleId,
-                fieldSymbols: ['NAF']
+                fieldSymbols: ['SR']
             });
-            const recordNDP = await api.projectTableRecords({
-                sourceUrl: variantInfoSource.url,
-                recordId: projectTableRecordId,
-                sampleId: reportData.sampleId,
-                fieldSymbols: ['NDP']
-            });
-            const NAF = recordNAF.find(r => r != null && r.length > 0 && r[0] != null);
-            const NDP = recordNDP.find(r => r != null && r.length > 0 && r[0] != null);
-            if(NAF != null) {
-                variant.naf = NAF[0][0];
-            }
-            if(NDP != null) {
-                variant.ndp = NDP[0];
+            const SR = recordSR.find(r => r != null && r.length > 0 && r[0] != null);
+            if(SR != null) {
+                const split_reads = String(SR[0]).split(',');
+                const wt_reads = parseInt(split_reads[0]);
+                const sv_reads = parseInt(split_reads[1]);
+                variant.sv_reads = sv_reads;
+                variant.sv_vaf = sv_reads / (wt_reads + sv_reads);
             }
         }
 
         // Send the JSON to a Flask server that will send a corresponding HL7 message to Beaker
-        const url = 'http://localhost:5000/receivejson';
-        sendJSON(reportData, url)
-            .then(data => console.log(data))
-            .catch(error => console.error(`Error: ${error}`));
+        // const url = 'http://localhost:5000/receivejson';
+        // sendJSON(reportData, url)
+        //     .then(data => console.log(data))
+        //     .catch(error => console.error(`Error: ${error}`));
         return [
             JSON.stringify(reportData)
         ];
