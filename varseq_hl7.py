@@ -2,22 +2,25 @@ import hl7.client
 from flask import Flask, request, jsonify
 from datetime import date
 from textwrap import wrap
-from mappings import LOINCS, SEQ_ONTOLOGY_MAP, get_variant_id
+from mappings import LOINCS, SEQ_ONTOLOGY_MAP, LAB_CODES, get_variant_id
 import argparse
 
 parser = argparse.ArgumentParser(description='HL7 Server')
-parser.add_argument('--hostname', type=str, help='Hostname of the server')
-parser.add_argument('--port', type=int, help='Port number of the server')
+parser.add_argument('--interface-host', required=True, type=str, help='Hostname of the interface server to send HL7 messages to')
+parser.add_argument('--interface-port', required=True, type=int, help='Port of the interface server to send HL7 messages to')
+parser.add_argument('--flask-port', required=True, type=str, help='Port to launch the local Flask server on')
 args = parser.parse_args()
-
-HOSTNAME = args.hostname
-PORT = args.port
+INTERFACE_HOST = args.interface_host
+INTERFACE_PORT = args.interface_port
+FLASK_PORT = args.flask_port
 
 class VarSeqInfo():
     def __init__(self, varseq_json):
         self.obx_idx = 0
         self.varseq_json = varseq_json
         self.sample_state = varseq_json["sampleState"]
+        self.coverage_summary = varseq_json["coverageSummary"]
+        self.panel = self.coverage_summary["panelName"]
         self.sample_id = self.sample_state["sampleName"].rstrip('R')
         self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
@@ -25,13 +28,9 @@ class VarSeqInfo():
         self.sex = self.get_sex(self.sample_state["sex"])
         self.prov_ln, self.prov_fn = self.get_prov_name()
         self.order_num = self.get_custom_field("OrderID")
+        self.date_ordered = self.get_date("dateOrdered")
+        self.date_received = self.get_date("dateReceived")
         self.prov_id = self.get_prov_id()
-        self.norm_sample_id = self.get_custom_field("N_SID").rstrip('R')
-        self.norm_order_num = self.get_custom_field("N_OrderID")
-        self.date_ordered = self.get_date("DateOrdered")
-        self.date_received = self.get_date("DateReceived")
-        self.norm_date_ordered = self.get_date("N_DateOrdered")
-        self.norm_date_received = self.get_date("N_DateReceived")
         self.date_sent = self.get_date_sent()
         self.variants = self.get_all_variants()
 
@@ -49,9 +48,9 @@ class VarSeqInfo():
 
     def get_all_variants(self):
         biomarkers = self.get_biomarker_variants()
-        biomarkers.sort(key=lambda x: x["vaf"], reverse=True)
+        biomarkers.sort(key=lambda x: self.get_vaf(x), reverse=True)
         all_variants = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        all_variants.sort(key=lambda x: x["vaf"], reverse=True) # sort variants by descending VAF
+        all_variants.sort(key=lambda x: self.get_vaf(x), reverse=True) # sort variants by descending VAF
         return biomarkers + all_variants
 
     def get_sig(self, sig_name):
@@ -116,11 +115,11 @@ class VarSeqInfo():
             raise Exception(f"Invalid date format: {date} found in JSON for {self.sample_id}, patient name: {self.pt_fn} {self.pt_ln}")
 
     def get_date(self, date_type):
-        date = self.get_custom_field(date_type).split(" ")[0]
-        # if date_type.startswith("N_") or date_type.startswith("Date"):
-        #     date = self.get_custom_field(date_type).split(" ")[0]
-        # else:
-        #     date = self.varseq_json["sampleState"][date_type]
+        # date = self.get_custom_field(date_type).split(" ")[0]
+        # # if date_type.startswith("N_") or date_type.startswith("Date"):
+        # #     date = self.get_custom_field(date_type).split(" ")[0]
+        # # else:
+        date = self.varseq_json["sampleState"][date_type]
         return self.format_header_date(date)
 
     def get_date_sent(self):
@@ -170,9 +169,9 @@ class VarSeqInfo():
         return round(naf, 2) if naf else 0
 
     def get_consequence(self, variant):
-        cons =  SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"])
-        if cons:
-            return cons
+        consequence = SEQ_ONTOLOGY_MAP.get(variant["sequenceOntology"])
+        if consequence:
+            return consequence
         else:
             raise RuntimeError(f"SequenceOntology term {variant['sequenceOntology']} not found")
 
@@ -212,6 +211,14 @@ class VarSeqInfo():
     def get_pdot(self, variant):
         return variant["pDot"] if variant["pDot"] else "p.?"
 
+    def get_vaf(self, variant):
+        if variant["vaf"]:
+            return round(variant["vaf"], 2)
+        elif variant["sv_vaf"]:
+            return round(variant["sv_vaf"], 4)
+        else:
+            raise RuntimeError(f"VAF not found for variant {variant['geneName']} {variant['cDot']}")
+
     def get_variant_display_name(self, variant):
         pdot = self.get_pdot(variant)
         pdot = "" if pdot == "p.?" else f"{pdot} - "
@@ -224,14 +231,20 @@ class VarSeqInfo():
         ref, alt = variant["refAlt"].split("/")
         start, stop = self.get_coords(variant)
         create_obx_segment = self.get_variant_obx_function(variant_idx)
+        if variant["sv_vaf"]:
+            variant_type = "Structural"
+            allele_depth = variant["sv_reads"]
+        else:
+            variant_type = "Simple"
+            allele_depth = variant["altReadCount"]
         obxs =  [
             create_obx_segment("48018-6", '^' + variant["geneName"] + '^'), # Variant Name (This is also a discrete field in EPIC)
             create_obx_segment("47998-0", self.get_variant_display_name(variant)), # Variant Display Name
             create_obx_segment("81252-9", 'v1^' + variant['hgvsWithGene'] + '^ClinVar-V'), # Discrete Genetic Variant
             create_obx_segment("48002-0", '^' + self.get_variant_type(variant)), # Genomic Source Class
             create_obx_segment("53037-8", '^' + self.get_clin_sig(variant)), # Genetic Sequence Variation Clinical Significance
-            create_obx_segment("81258-6", round(variant["vaf"], 2)), # Allelic Frequency
-            create_obx_segment("82121-5", variant["altReadCount"]), # Allelic Read Depth
+            create_obx_segment("81258-6", self.get_vaf(variant)), # Allelic Frequency
+            create_obx_segment("82121-5", allele_depth), # Allelic Read Depth
             create_obx_segment("48005-3", self.get_pdot(variant)), # Amino Acid Change p.HGVS
             create_obx_segment("48019-4", '^' + self.get_dna_change(variant)),
             create_obx_segment("48004-6", '^' + variant['cDot']), # DNA Change c.HGVS
@@ -244,13 +257,15 @@ class VarSeqInfo():
             create_obx_segment("69551-0", alt), # Genomic Alternate Allele
             create_obx_segment("81254-5", f"{start}^{stop}"), # Genomic Allele Start-End
             create_obx_segment("62374-4", '^' + variant['assembly']), # Human Reference Sequence Assembly Version
-            create_obx_segment("83005-9", "Simple"), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
+            create_obx_segment("83005-9", variant_type), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
             create_obx_segment("69548-6", "Detected"), # Genetic Variant Assessment
         ]
         interp = self.get_interp(variant)
         if interp: obxs.append(create_obx_segment("93364-8", interp))
         zyg = variant.get("zygosity")
         if zyg: obxs.append(create_obx_segment("53034-5", '^' + zyg))
+        sv_len = variant.get("sv_len")
+        if sv_len: obxs.append(create_obx_segment("81300-6", sv_len))
         return "\r\n".join(obxs)
 
     # While we send these variants in the tumor's HL7 message, we send them again here for the normal sample so we can get the normal allele frequency
@@ -278,24 +293,31 @@ class VarSeqInfo():
     def get_tumor_msg_header(self):
         self.reset_obx_idx()
         bases_20x, bases_200x, bases_500x, covg_mean = self.get_covg_metrics()
-        return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
+        lab_code_segment = LAB_CODES.get(self.panel)
+        header = f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
 PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
 ORC|RE\r
-OBR|1|{self.order_num}|{self.sample_id}^Beaker|LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.date_received}|||F\r
+OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.date_received}|||F\r
 {self.create_obx_segment("2a", "7102415", f"^{self.get_tumor_type()}")}\r
-{self.create_obx_segment("2a", "81695-9", f"^{self.get_msi()}")}\r
-{self.create_obx_segment("2a", "94076-7", f"{self.get_tmb()}")}\r
 {self.create_obx_segment("2a", "7102423", bases_20x)}\r
 {self.create_obx_segment("2a", "7102424", bases_200x)}\r
 {self.create_obx_segment("2a", "7102425", bases_500x)}\r
 {self.create_obx_segment("2a", "7102426", covg_mean)}\r"""
+        if self.panel == "UCLA Pan-Cancer All v1":
+            header += f"""{self.create_obx_segment("2a", "81695-9", f"^{self.get_msi()}")}\r"""
+            header += f"""{self.create_obx_segment("2a", "94076-7", f"{self.get_tmb()}")}\r"""
+        return header
 
     def get_normal_msg_header(self):
         self.reset_obx_idx()
+        norm_sample_id = self.get_custom_field("N_SID").rstrip('R')
+        norm_order_num = self.get_custom_field("N_OrderID")
+        norm_date_ordered = self.get_date("N_DateOrdered")
+        norm_date_received = self.get_date("N_DateReceived")
         return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
 PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
 ORC|RE\r
-OBR|1|{self.norm_order_num}|{self.norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Comparator^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{self.norm_date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{self.norm_date_received}|||F\r"""
+OBR|1|{norm_order_num}|{norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Comparator^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{norm_date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{norm_date_received}|||F\r"""
 
     def get_tumor_obxs(self):
         return "\r\n".join([self.get_tumor_variant_obxs(variant, idx) for idx, variant in enumerate(self.variants)])
@@ -308,22 +330,22 @@ OBR|1|{self.norm_order_num}|{self.norm_sample_id}^Beaker|LAB9056^Pan-cancer Pane
         return self.get_tumor_msg_header() + self.get_tumor_obxs()
 
     def get_normal_msg(self):
-        header = self.get_normal_msg_header()
-        normal_obxs = self.get_normal_obxs()
-        if normal_obxs:
-            return header + normal_obxs
-        else:
-            return ""
+        if self.panel == "UCLA Pan-Cancer All v1":
+            header = self.get_normal_msg_header()
+            normal_obxs = self.get_normal_obxs()
+            if normal_obxs:
+                return header + normal_obxs
+        return ""
 
-def create_hl7_msgs(vs_json):
+def create_hl7_msg(vs_json):
     vs_info = VarSeqInfo(vs_json)
     return vs_info.get_tumor_msg(), vs_info.get_normal_msg()
 
-def send_hl7_msgs(vs_json):
-    with hl7.client.MLLPClient(HOSTNAME, PORT) as client:
-        tumor_msg, normal_msg = create_hl7_msgs(vs_json)
-        # with open("tumor_msg.txt", "w") as f:
-        #     f.write(tumor_msg)
+def send_hl7_msg(vs_json):
+    with hl7.client.MLLPClient(INTERFACE_HOST, INTERFACE_PORT) as client:
+        tumor_msg, normal_msg = create_hl7_msg(vs_json)
+        with open("tumor_msg.txt", "w") as f:
+            f.write(tumor_msg)
         print(client.send_message(tumor_msg))
         print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
@@ -338,11 +360,11 @@ app = Flask(__name__)
 def receive_json():
     data = request.get_json()
     if data:
-        result = send_hl7_msgs(data)
+        result = send_hl7_msg(data)
         return jsonify(result), 200
     else:
         return jsonify({"error": "No JSON data received"}), 400
 
-# launches Flask server on localhost:5000
+# launches Flask server on localhost:FLASK_PORT
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=FLASK_PORT, debug=True)

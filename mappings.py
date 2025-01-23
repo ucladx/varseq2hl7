@@ -36,6 +36,7 @@ LOINCS = {
     "53034-5": ["Allelic State", "CWE"],
     "69547-8": ["Genomic Reference Allele", "ST"],
     "69551-0": ["Genomic Alternate Allele", "ST"],
+    "81300-6": ["Structural Variant Length", "NM"],
     "7400052": ["Protein Reference Sequence", "ST"],
     "7102415": ["Tumor Type", "CWE"],
     "7102423": ["20x Depth Percentage", "ST"],
@@ -90,4 +91,9 @@ SEQ_ONTOLOGY_MAP = {
     "regulatory_region_variant": "Regulatory Region Variant",
     "intergenic_variant": "Intergenic Variant",
     "sequence_variant": "Coding Sequence Variant",
+}
+
+LAB_CODES = {
+    "UCLA Heme v2": "LAB9121R^Hematologic Malignancy Sequencing Panel^BKREAP^^^^^^HEMATOLOGIC MALIGNANCY SEQUENCING PANEL",
+    "UCLA Pan-Cancer All v1": "LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL",
 }
