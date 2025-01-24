@@ -24,6 +24,7 @@ LOINCS = {
     "82121-5": ["Allelic Read Depth", "NM"],
     "94076-7": ["Tumor Mutational Burden", "NM"],
     "47998-0": ["Variant Display Name", "ST"],
+    "47999-8": ["DNA Region", "ST"],
     "83005-9": ["Variant Category", "ST"],
     "81695-9": ["Microsatellite Instability", "CWE"],
     "69548-6": ["Genetic Variant Assessment", "ST"],
