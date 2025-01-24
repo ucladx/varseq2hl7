@@ -242,6 +242,7 @@ class VarSeqInfo():
             create_obx_segment("47998-0", self.get_variant_display_name(variant)), # Variant Display Name
             create_obx_segment("81252-9", 'v1^' + variant['hgvsWithGene'] + '^ClinVar-V'), # Discrete Genetic Variant
             create_obx_segment("48002-0", '^' + self.get_variant_type(variant)), # Genomic Source Class
+            create_obx_segment("83005-9", variant_type), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
             create_obx_segment("53037-8", '^' + self.get_clin_sig(variant)), # Genetic Sequence Variation Clinical Significance
             create_obx_segment("81258-6", self.get_vaf(variant)), # Allelic Frequency
             create_obx_segment("82121-5", allele_depth), # Allelic Read Depth
@@ -256,8 +257,8 @@ class VarSeqInfo():
             create_obx_segment("69547-8", ref), # Genomic Reference Allele
             create_obx_segment("69551-0", alt), # Genomic Alternate Allele
             create_obx_segment("81254-5", f"{start}^{stop}"), # Genomic Allele Start-End
+            create_obx_segment("47999-8", variant["exon"]), # DNA Region
             create_obx_segment("62374-4", '^' + variant['assembly']), # Human Reference Sequence Assembly Version
-            create_obx_segment("83005-9", variant_type), # EPIC Variant Category (Simple, Complex, Fusion, etc.))
             create_obx_segment("69548-6", "Detected"), # Genetic Variant Assessment
         ]
         interp = self.get_interp(variant)
