@@ -338,19 +338,16 @@ OBR|1|{norm_order_num}|{norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Compara
                 return header + normal_obxs
         return ""
 
-def create_hl7_msg(vs_json):
-    vs_info = VarSeqInfo(vs_json)
-    return vs_info.get_tumor_msg(), vs_info.get_normal_msg()
-
 def send_hl7_msg(vs_json):
+    vs_info = VarSeqInfo(vs_json)
+    tumor_msg, normal_msg = vs_info.get_tumor_msg(), vs_info.get_normal_msg()
     with hl7.client.MLLPClient(INTERFACE_HOST, INTERFACE_PORT) as client:
-        tumor_msg, normal_msg = create_hl7_msg(vs_json)
-        with open("tumor_msg.txt", "w") as f:
+        with open(f"{vs_info.sample_id}_tumor_msg.txt", "w") as f:
             f.write(tumor_msg)
         print(client.send_message(tumor_msg))
         print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
-            # with open("normal_msg.txt", "w") as f:
+            # with open(f"{vs_info.sample_id}_normal_msg.txt", "w") as f:
             #     f.write(normal_msg)
             print(client.send_message(normal_msg))
             print(f"Sent normal message: {normal_msg.splitlines()[3]}")
