@@ -48,10 +48,9 @@ class VarSeqInfo():
 
     def get_all_variants(self):
         biomarkers = self.get_biomarker_variants()
-        biomarkers.sort(key=lambda x: self.get_vaf(x), reverse=True)
-        all_variants = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        all_variants.sort(key=lambda x: self.get_vaf(x), reverse=True) # sort variants by descending VAF
-        return biomarkers + all_variants
+        all_variants = biomarkers + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
+        all_variants.sort(key=lambda x: x["geneName"], reverse=True) # sort variants by descending VAF
+        return all_variants
 
     def get_sig(self, sig_name):
         for biomarker in self.varseq_json["biomarkers"]:
@@ -215,7 +214,7 @@ class VarSeqInfo():
         if variant["vaf"]:
             return round(variant["vaf"], 2)
         elif variant["sv_vaf"]:
-            return round(variant["sv_vaf"], 4)
+            return round(variant["sv_vaf"], 2)
         else:
             raise RuntimeError(f"VAF not found for variant {variant['geneName']} {variant['cDot']}")
 
