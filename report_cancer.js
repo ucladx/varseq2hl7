@@ -58,10 +58,10 @@ export default {
         }
 
         // Send the JSON to a Flask server that will send a corresponding HL7 message to Beaker
-        // const url = 'http://localhost:5000/receivejson';
-        // sendJSON(reportData, url)
-        //     .then(data => console.log(data))
-        //     .catch(error => console.error(`Error: ${error}`));
+        const url = 'http://localhost:5000/receivejson';
+        sendJSON(reportData, url)
+            .then(data => console.log(data))
+            .catch(error => console.error(`Error: ${error}`));
         return [
             JSON.stringify(reportData)
         ];
