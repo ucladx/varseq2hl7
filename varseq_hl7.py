@@ -49,7 +49,7 @@ class VarSeqInfo():
     def get_all_variants(self):
         biomarkers = self.get_biomarker_variants()
         all_variants = biomarkers + self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        all_variants.sort(key=lambda x: x["geneName"], reverse=True) # sort variants by descending VAF
+        all_variants.sort(key=lambda x: x["geneName"]) # sort variants alpahebetically by gene name
         return all_variants
 
     def get_sig(self, sig_name):
