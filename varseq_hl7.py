@@ -231,7 +231,8 @@ class VarSeqInfo():
         ref, alt = variant["refAlt"].split("/")
         start, stop = self.get_coords(variant)
         create_obx_segment = self.get_variant_obx_function(variant_idx)
-        if variant["sv_vaf"]:
+        sv_vaf = variant.get("sv_vaf")
+        if sv_vaf:
             variant_type = "Structural"
             allele_depth = variant["sv_reads"]
         else:
