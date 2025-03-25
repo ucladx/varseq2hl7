@@ -116,10 +116,10 @@ class VarSeqInfo():
 
     def get_date(self, date_type):
         # date = self.get_custom_field(date_type).split(" ")[0]
-        # # if date_type.startswith("N_") or date_type.startswith("Date"):
-        # #     date = self.get_custom_field(date_type).split(" ")[0]
-        # # else:
-        date = self.varseq_json["sampleState"][date_type]
+        if date_type.startswith("N_") or date_type.startswith("Date"):
+            date = self.get_custom_field(date_type).split(" ")[0]
+        else:
+            date = self.varseq_json["sampleState"][date_type]
         return self.format_header_date(date)
 
     def get_date_sent(self):
