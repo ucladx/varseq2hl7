@@ -312,10 +312,10 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_o
 
     def get_normal_msg_header(self):
         self.reset_obx_idx()
-        norm_sample_id = self.get_custom_field("N_S ID").rstrip('R')
-        norm_order_num = self.get_custom_field("N_Order ID")
-        norm_date_ordered = self.get_date("N_Date Ordered")
-        norm_date_received = self.get_date("N_Date Received")
+        norm_sample_id = self.get_custom_field("N_SID").rstrip('R')
+        norm_order_num = self.get_custom_field("N_OrderID")
+        norm_date_ordered = self.get_date("N_DateOrdered")
+        norm_date_received = self.get_date("N_DateReceived")
         return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
 PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
 ORC|RE\r
