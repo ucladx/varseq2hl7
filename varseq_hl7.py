@@ -49,8 +49,12 @@ class VarSeqInfo():
     def get_all_variants(self):
         biomarkers = self.get_biomarker_variants()
         vus = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        biomarkers.sort(key=lambda x: x["geneName"]) # sort biomarkers alpahebetically by gene name
-        vus.sort(key=lambda x: x["geneName"]) # sort VUS alpahebetically by gene name
+        if self.panel == "UCLA Pan-Cancer All v1":
+            sortBy = "vaf"
+        elif self.panel == "UCLA Heme v2":
+            sortBy = "geneName"
+        biomarkers.sort(key=lambda x: x[sortBy])
+        vus.sort(key=lambda x: x[sortBy])
         return biomarkers + vus
 
     def get_sig(self, sig_name):
