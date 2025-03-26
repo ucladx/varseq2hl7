@@ -51,10 +51,12 @@ class VarSeqInfo():
         vus = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
         if self.panel == "UCLA Pan-Cancer All v1":
             sortBy = "vaf"
+            reverse = True
         elif self.panel == "UCLA Heme v2":
             sortBy = "geneName"
-        biomarkers.sort(key=lambda x: x[sortBy])
-        vus.sort(key=lambda x: x[sortBy])
+            reverse = False
+        biomarkers.sort(key=lambda x: x[sortBy], reverse=reverse)
+        vus.sort(key=lambda x: x[sortBy], reverse=reverse)
         return biomarkers + vus
 
     def get_sig(self, sig_name):
