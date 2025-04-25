@@ -76,6 +76,7 @@ SEQ_ONTOLOGY_MAP = {
     "initiator_codon_variant": "Coding Sequence Variant",
     "mature_miRNA_variant": "Mature miRNA Variant",
     "5_prime_UTR_variant": "5 Prime UTR Variant",
+    "5_prime_UTR_premature_start_codon_gain_variant": "5 Prime UTR Variant",
     "3_prime_UTR_variant": "3 Prime UTR Variant",
     "non_coding_transcript_exon_variant": "Non Coding Transcript Exon Variant",
     "intron_variant": "Intron Variant",
