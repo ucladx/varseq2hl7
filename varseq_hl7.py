@@ -4,6 +4,7 @@ from datetime import date
 from textwrap import wrap
 from mappings import LOINCS, SEQ_ONTOLOGY_MAP, LAB_CODES, get_variant_id
 import argparse
+import re
 
 parser = argparse.ArgumentParser(description='HL7 Server')
 parser.add_argument('--interface-host', required=True, type=str, help='Hostname of the interface server to send HL7 messages to')
@@ -21,7 +22,7 @@ class VarSeqInfo():
         self.sample_state = varseq_json["sampleState"]
         self.coverage_summary = varseq_json["coverageSummary"]
         self.panel = self.coverage_summary["panelName"]
-        self.sample_id = self.sample_state["sampleName"].rstrip('R')
+        self.sample_id = self.get_sample_id()
         self.mrn = self.get_mrn()
         self.pt_ln, self.pt_fn = self.get_pt_name()
         self.bday = self.get_date("dob")
@@ -58,6 +59,15 @@ class VarSeqInfo():
         biomarkers.sort(key=lambda x: x[sortBy], reverse=reverse)
         vus.sort(key=lambda x: x[sortBy], reverse=reverse)
         return biomarkers + vus
+
+    def get_sample_id(self):
+        sample_id = self.sample_state["sampleName"]
+        if sample_id.endswith('R'):
+            return sample_id.rstrip('R')
+        elif sample_id[-1].isdigit() and sample_id[-2] == 'R':
+            return sample_id[:-2]
+        else:
+            return sample_id
 
     def get_sig(self, sig_name):
         for biomarker in self.varseq_json["biomarkers"]:
@@ -354,8 +364,8 @@ def send_hl7_msg(vs_json):
         print(client.send_message(tumor_msg))
         print(f"Sent tumor message: {tumor_msg.splitlines()[3]}")
         if normal_msg:
-            # with open(f"{vs_info.sample_id}_normal_msg.txt", "w") as f:
-            #     f.write(normal_msg)
+            with open(f"{vs_info.sample_id}_normal_msg.txt", "w") as f:
+                f.write(normal_msg)
             print(client.send_message(normal_msg))
             print(f"Sent normal message: {normal_msg.splitlines()[3]}")
     return vs_json
