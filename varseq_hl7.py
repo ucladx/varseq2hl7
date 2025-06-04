@@ -88,17 +88,18 @@ class VarSeqInfo():
         return self.get_sig("TMB")
 
     def get_covg_metrics(self):
-        # if self.panel == "UCLA Pan-Cancer All v1":
-        covg_summary = self.varseq_json["coverageSummary"]
-        bases_20x = covg_summary["basesAt20x"]
-        bases_200_or_250x = covg_summary["basesAt200x"]
-        bases_500x = covg_summary["basesAt500x"]
-        covg_mean = round(covg_summary["meanDepth"])
-        # elif self.panel == "UCLA Heme v2":
-        #     bases_20x = self.get_custom_field("%ROI_20x")
-        #     bases_500x = self.get_custom_field("%ROI_500x")
-        #     bases_200_or_250x = self.get_custom_field("%ROI_250x")
-        #     covg_mean = self.get_custom_field("Avg_ROI_Coverage")
+        has_new_covg = self.get_custom_field("%ROI_20x") != ""
+        if has_new_covg:
+            bases_20x = self.get_custom_field("%ROI_20x")
+            bases_200_or_250x = self.get_custom_field("%ROI_250x")
+            bases_500x = self.get_custom_field("%ROI_500x")
+            covg_mean = self.get_custom_field("Avg_ROI_Coverage")
+        else:
+            covg_summary = self.varseq_json["coverageSummary"]
+            bases_20x = covg_summary["basesAt20x"]
+            bases_200_or_250x = covg_summary["basesAt200x"]
+            bases_500x = covg_summary["basesAt500x"]
+            covg_mean = round(covg_summary["meanDepth"])
         return [round(int(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
 
     def get_custom_field(self, field_name):
