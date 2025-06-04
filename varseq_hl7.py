@@ -99,7 +99,7 @@ class VarSeqInfo():
             bases_500x = self.get_custom_field("%ROI_500x")
             bases_200_or_250x = self.get_custom_field("%ROI_250x")
             covg_mean = self.get_custom_field("Avg_ROI_Coverage")
-        return [round(x, 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
+        return [round(int(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
 
     def get_custom_field(self, field_name):
         custom_fields = self.varseq_json["customFields"]
