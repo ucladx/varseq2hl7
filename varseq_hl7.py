@@ -51,14 +51,15 @@ class VarSeqInfo():
         biomarkers = self.get_biomarker_variants()
         vus = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
         if self.panel == "UCLA Pan-Cancer All v1":
-            sortBy = "vaf"
+            sort_func = lambda x: self.get_vaf(x)
             reverse = True
         elif self.panel == "UCLA Heme v2":
-            sortBy = "geneName"
+            sort_func = lambda x: x["geneName"]
             reverse = False
-        biomarkers = biomarkers.sort(key=lambda x: x[sortBy], reverse=reverse) if biomarkers else []
-        vus = vus.sort(key=lambda x: x[sortBy], reverse=reverse) if vus else []
-        vus.sort(key=lambda x: x[sortBy], reverse=reverse)
+        if biomarkers:
+            biomarkers.sort(key=sort_func, reverse=reverse)
+        if vus:
+            vus.sort(key=sort_func, reverse=reverse)
         return biomarkers + vus
 
     def get_sample_id(self):
@@ -89,19 +90,20 @@ class VarSeqInfo():
         return self.get_sig("TMB")
 
     def get_covg_metrics(self):
-        has_new_covg = self.get_custom_field("%ROI_20x") != ""
-        if has_new_covg:
-            bases_20x = self.get_custom_field("%ROI_20x")
-            bases_200_or_250x = self.get_custom_field("%ROI_250x")
-            bases_500x = self.get_custom_field("%ROI_500x")
-            covg_mean = self.get_custom_field("Avg_ROI_Coverage")
-        else:
-            covg_summary = self.varseq_json["coverageSummary"]
-            bases_20x = covg_summary["basesAt20x"]
-            bases_200_or_250x = covg_summary["basesAt200x"]
-            bases_500x = covg_summary["basesAt500x"]
-            covg_mean = round(covg_summary["meanDepth"])
-        return [round(int(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
+        if self.panel == "UCLA Heme v2":
+            has_new_covg = self.get_custom_field("ROI_20x") != ""
+            if has_new_covg:
+                bases_20x = self.get_custom_field("ROI_20x")
+                bases_200_or_250x = self.get_custom_field("ROI_250x")
+                bases_500x = self.get_custom_field("ROI_500x")
+                covg_mean = self.get_custom_field("Avg_ROI_Coverage")
+                return [round(float(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
+        covg_summary = self.varseq_json["coverageSummary"]
+        bases_20x = covg_summary["basesAt20x"]
+        bases_200_or_250x = covg_summary["basesAt200x"]
+        bases_500x = covg_summary["basesAt500x"]
+        covg_mean = round(covg_summary["meanDepth"])
+        return [round(float(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
 
     def get_custom_field(self, field_name):
         custom_fields = self.varseq_json["customFields"]
@@ -236,10 +238,11 @@ class VarSeqInfo():
         return variant["pDot"] if variant["pDot"] else "p.?"
 
     def get_vaf(self, variant):
-        if variant["vaf"]:
-            return round(variant["vaf"], 2)
-        elif variant["sv_vaf"]:
-            return round(variant["sv_vaf"], 2)
+        given_vaf = variant.get("vaf", variant.get("sv_vaf"))
+        if given_vaf is not None:
+            return round(given_vaf, 2)
+        elif variant["altReadCount"] and variant["readDepth"]:
+            return round(variant["altReadCount"] / variant["readDepth"], 2)
         else:
             raise RuntimeError(f"VAF not found for variant {variant['geneName']} {variant['cDot']}")
 
