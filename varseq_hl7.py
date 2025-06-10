@@ -56,7 +56,8 @@ class VarSeqInfo():
         elif self.panel == "UCLA Heme v2":
             sortBy = "geneName"
             reverse = False
-        biomarkers.sort(key=lambda x: x[sortBy], reverse=reverse)
+        biomarkers = biomarkers.sort(key=lambda x: x[sortBy], reverse=reverse) if biomarkers else []
+        vus = vus.sort(key=lambda x: x[sortBy], reverse=reverse) if vus else []
         vus.sort(key=lambda x: x[sortBy], reverse=reverse)
         return biomarkers + vus
 
