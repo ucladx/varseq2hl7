@@ -4,7 +4,6 @@ from datetime import date
 from textwrap import wrap
 from mappings import LOINCS, SEQ_ONTOLOGY_MAP, LAB_CODES, get_variant_id
 import argparse
-import re
 
 parser = argparse.ArgumentParser(description='HL7 Server')
 parser.add_argument('--interface-host', required=True, type=str, help='Hostname of the interface server to send HL7 messages to')
@@ -90,20 +89,20 @@ class VarSeqInfo():
         return self.get_sig("TMB")
 
     def get_covg_metrics(self):
-        if self.panel == "UCLA Heme v2":
-            has_new_covg = self.get_custom_field("ROI_20x") != ""
-            if has_new_covg:
-                bases_20x = self.get_custom_field("ROI_20x")
-                bases_200_or_250x = self.get_custom_field("ROI_250x")
-                bases_500x = self.get_custom_field("ROI_500x")
-                covg_mean = self.get_custom_field("Avg_ROI_Coverage")
-                return [round(float(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
-        covg_summary = self.varseq_json["coverageSummary"]
-        bases_20x = covg_summary["basesAt20x"]
-        bases_200_or_250x = covg_summary["basesAt200x"]
-        bases_500x = covg_summary["basesAt500x"]
-        covg_mean = round(covg_summary["meanDepth"])
-        return [round(float(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
+        has_new_covg = self.get_custom_field("ROI_20x") != ""
+        if has_new_covg:
+            bases_20x = self.get_custom_field("ROI_20x")
+            bases_200_or_250x = self.get_custom_field("ROI_250x")
+            bases_500x = self.get_custom_field("ROI_500x")
+            covg_mean = self.get_custom_field("Avg_ROI_Coverage")
+            return [round(float(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
+        else:
+            covg_summary = self.varseq_json["coverageSummary"]
+            bases_20x = covg_summary["basesAt20x"]
+            bases_200_or_250x = covg_summary["basesAt200x"]
+            bases_500x = covg_summary["basesAt500x"]
+            covg_mean = round(covg_summary["meanDepth"])
+            return [round(float(x), 2) for x in [bases_20x, bases_200_or_250x, bases_500x, covg_mean]]
 
     def get_custom_field(self, field_name):
         custom_fields = self.varseq_json["customFields"]
