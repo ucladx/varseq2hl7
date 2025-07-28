@@ -237,9 +237,11 @@ class VarSeqInfo():
         return variant["pDot"] if variant["pDot"] else "p.?"
 
     def get_vaf(self, variant):
-        given_vaf = variant.get("vaf", variant.get("sv_vaf"))
-        if given_vaf is not None:
-            return round(given_vaf, 2)
+        if variant.get("vaf"):
+            return round(variant["vaf"], 2)
+        elif variant.get("sv_vaf"):
+            return round(variant["sv_vaf"], 2)
+		# If no VAF is given, calculate it from altReadCount and readDepth
         elif variant["altReadCount"] and variant["readDepth"]:
             return round(variant["altReadCount"] / variant["readDepth"], 2)
         else:
