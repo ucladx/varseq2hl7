@@ -253,7 +253,7 @@ class VarSeqInfo():
         molecular_cons = self.get_consequence(variant)
         if molecular_cons == "Nonsense":
             molecular_cons = "Nonsense Variant"
-        return f"{variant['geneName']} {pdot}{variant['cDot']} {molecular_cons}"
+        return f"{variant['geneName']} {variant['location']} {molecular_cons}"
 
     def get_tumor_variant_obxs(self, variant, variant_idx):
         ref, alt = variant["refAlt"].split("/")
@@ -282,7 +282,7 @@ class VarSeqInfo():
             create_obx_segment("7400052", variant["proteinId"]),
             create_obx_segment("51958-7", f"{variant['transcriptName']}^{variant['transcriptName']}^RefSeq-T"), # Transcript Reference Sequence
             create_obx_segment("48000-4", self.get_chrom(variant)), # Chromosome
-            create_obx_segment("48006-1", '^' + self.get_consequence(variant)),
+            create_obx_segment("48006-1", '^' + self.get_consequence(variant)), # Molecular Consequence
             create_obx_segment("69547-8", ref), # Genomic Reference Allele
             create_obx_segment("69551-0", alt), # Genomic Alternate Allele
             create_obx_segment("81254-5", f"{start}^{stop}"), # Genomic Allele Start-End
