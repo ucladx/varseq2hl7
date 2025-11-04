@@ -45,6 +45,7 @@ LOINCS = {
     "7102425": ["500x Depth Percentage", "ST"],
     "7102426": ["Mean Depth", "ST"],
     "7102447": ["Under-covered Genes", "ST"],
+    "7102448": ["Bfx Pipeline Version", "ST"],
 }
 
 # Maps Sequence Ontology Terms to EPIC molecular consequence and DNA change type
