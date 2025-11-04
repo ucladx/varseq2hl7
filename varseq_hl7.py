@@ -340,6 +340,9 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_o
             under_covered_genes = self.get_custom_field("underCoveredGenes")
             if under_covered_genes:
                 header += f"""{self.create_obx_segment("2a", "7102447", under_covered_genes)}\r"""
+            pipeline_version = self.get_custom_field("pipelineVersion")
+            if pipeline_version:
+                header += f"""{self.create_obx_segment("2a", "7102448", pipeline_version)}\r"""
         return header
 
     def get_normal_msg_header(self):
