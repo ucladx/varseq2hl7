@@ -97,5 +97,6 @@ SEQ_ONTOLOGY_MAP = {
 
 LAB_CODES = {
     "UCLA Heme v2": "LAB9121R^Hematologic Malignancy Sequencing Panel^BKREAP^^^^^^HEMATOLOGIC MALIGNANCY SEQUENCING PANEL",
+    "GOAL 221 Heme Exon Targets": "LAB9121R^Hematologic Malignancy Sequencing Panel^BKREAP^^^^^^HEMATOLOGIC MALIGNANCY SEQUENCING PANEL",
     "UCLA Pan-Cancer All v1": "LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL",
 }

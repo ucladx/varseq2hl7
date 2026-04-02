@@ -52,7 +52,7 @@ class VarSeqInfo():
         if self.panel == "UCLA Pan-Cancer All v1":
             sort_func = lambda x: self.get_vaf(x)
             reverse = True
-        elif self.panel == "UCLA Heme v2":
+        elif self.panel == "UCLA Heme v2" or self.panel == "GOAL 221 Heme Exon Targets":
             sort_func = lambda x: x["geneName"]
             reverse = False
         if biomarkers:
