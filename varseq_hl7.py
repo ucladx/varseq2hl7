@@ -49,7 +49,7 @@ class VarSeqInfo():
     def get_all_variants(self):
         biomarkers = self.get_biomarker_variants()
         vus = self.varseq_json["germlineVariants"] + self.varseq_json["uncertainVariants"]
-        if self.panel == "UCLA Pan-Cancer All v1":
+        if self.panel == "UCLA Pan-Cancer All v1" or self.panel == "Pan-Cancer Solid Tumor Exon Targets":
             sort_func = lambda x: self.get_vaf(x)
             reverse = True
         elif self.panel == "UCLA Heme v2" or self.panel == "GOAL 221 Heme Exon Targets":
@@ -333,7 +333,7 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_o
 {self.create_obx_segment("2a", "7102424", bases_200x)}\r
 {self.create_obx_segment("2a", "7102425", bases_500x)}\r
 {self.create_obx_segment("2a", "7102426", covg_mean)}\r"""
-        if self.panel == "UCLA Pan-Cancer All v1":
+        if self.panel == "UCLA Pan-Cancer All v1" or self.panel == "Pan-Cancer Solid Tumor Exon Targets":
             header += f"""{self.create_obx_segment("2a", "81695-9", f"^{self.get_msi()}")}\r"""
             header += f"""{self.create_obx_segment("2a", "94076-7", f"{self.get_tmb()}")}\r"""
         return header
@@ -360,7 +360,7 @@ OBR|1|{norm_order_num}|{norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Compara
         return self.get_tumor_msg_header() + self.get_tumor_obxs()
 
     def get_normal_msg(self):
-        if self.panel == "UCLA Pan-Cancer All v1":
+        if self.panel == "UCLA Pan-Cancer All v1" or self.panel == "Pan-Cancer Solid Tumor Exon Targets":
             header = self.get_normal_msg_header()
             normal_obxs = self.get_normal_obxs()
             if normal_obxs:
