@@ -101,3 +101,29 @@ LAB_CODES = {
     "UCLA Pan-Cancer All v1": "LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL",
     "Pan-Cancer Solid Tumor Exon Targets": "LAB9055^Pan-cancer Solid Tumor Panel^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL",
 }
+
+# Column name -> VarSeqInfo attribute mapping for the sampleinfo_override TSV
+# Columns not listed here are ignored
+OVERRIDE_FIELD_MAP = {
+    "MRN": "mrn",
+    "DOB": "bday",
+    "Gender": "sex",
+    "Specimen ID": "sample_id",
+    "Order ID": "order_num",
+    "Order Date/Time": "date_ordered",
+    "Received": "date_received",
+    "Authorizing Provider": "_prov_name",       # special: will be split into prov_ln, prov_fn
+    "Authorizing Provider Internal ID": "prov_id",
+    "Patient/MRN": "_pt_name",                   # special: will be split into pt_ln, pt_fn
+}
+
+# Fields for the normal sample override (PCP only)
+NORMAL_OVERRIDE_FIELDS = {
+    "Specimen ID": "N_SID",
+    "Order ID": "N_OrderID",
+    "Order Date/Time": "N_DateOrdered",
+    "Received": "N_DateReceived",
+}
+
+TUMOR_TEST_VALUE = "Pan-cancer Solid Tumor NGS Panel"
+NORMAL_TEST_VALUE = "Pan-cancer Panel, Comparator"

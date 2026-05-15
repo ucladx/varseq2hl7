@@ -2,20 +2,135 @@ import hl7.client
 from flask import Flask, request, jsonify
 from datetime import date
 from textwrap import wrap
-from mappings import LOINCS, SEQ_ONTOLOGY_MAP, LAB_CODES, get_variant_id
+from mappings import LOINCS, SEQ_ONTOLOGY_MAP, LAB_CODES, get_variant_id, OVERRIDE_FIELD_MAP, NORMAL_OVERRIDE_FIELDS, TUMOR_TEST_VALUE, NORMAL_TEST_VALUE
 import argparse
+import csv
+import os
 
 parser = argparse.ArgumentParser(description='HL7 Server')
 parser.add_argument('--interface-host', required=True, type=str, help='Hostname of the interface server to send HL7 messages to')
 parser.add_argument('--interface-port', required=True, type=int, help='Port of the interface server to send HL7 messages to')
 parser.add_argument('--flask-port', required=True, type=str, help='Port to launch the local Flask server on')
+parser.add_argument('--sampleinfo-override', required=False, type=str, default=None,
+                     help='Path to a TSV file that overrides patient/order info in VarSeqInfo (e.g. to redirect results to a different patient record)')
 args = parser.parse_args()
 INTERFACE_HOST = args.interface_host
 INTERFACE_PORT = args.interface_port
 FLASK_PORT = args.flask_port
+SAMPLEINFO_OVERRIDE = args.sampleinfo_override
+
+
+def parse_sampleinfo_override(filepath):
+    """Parse a sampleinfo_override TSV file.
+
+    The TSV should have column headers in the first row. Subsequent rows
+    contain override values. Tumor vs normal rows are identified by the
+    "Test" column:
+        - "Pan-cancer Solid Tumor NGS Panel" -> tumor
+        - "Pan-cancer Panel, Comparator"     -> normal
+
+    If neither Test value matches (e.g. Heme panels), the first row is
+    treated as the tumor override with no normal override.
+
+    Returns:
+        tuple: (tumor_overrides: dict, normal_overrides: dict or None)
+            Each dict maps VarSeqInfo attribute names to override values.
+    """
+    if not filepath or not os.path.isfile(filepath):
+        return {}, None
+
+    with open(filepath, newline='') as f:
+        reader = csv.DictReader(f, delimiter='\t')
+        rows = list(reader)
+
+    if not rows:
+        return {}, None
+
+    tumor_row = None
+    normal_row = None
+    for row in rows:
+        test_val = row.get("Test", "").strip()
+        if test_val == TUMOR_TEST_VALUE:
+            tumor_row = row
+        elif test_val == NORMAL_TEST_VALUE:
+            normal_row = row
+
+    # If no Test column match, fall back to first row = tumor (e.g. Heme)
+    if tumor_row is None:
+        tumor_row = rows[0]
+
+    tumor_overrides = _row_to_overrides(tumor_row)
+    normal_overrides = _row_to_normal_overrides(normal_row) if normal_row else None
+    return tumor_overrides, normal_overrides
+
+def _format_override_date(date_str):
+    """Format a date string from the override TSV to YYYYMMDD.
+    Accepts M/D/YYYY, MM/DD/YYYY, or already-formatted YYYYMMDD."""
+    date_str = date_str.strip().split(" ")[0]  # drop time component if present
+    if "/" in date_str:
+        parts = date_str.split("/")
+        if len(parts) == 3:
+            m, d, y = parts
+            return f"{y}{m.zfill(2)}{d.zfill(2)}"
+    return date_str  # assume already formatted
+
+def _row_to_overrides(row):
+    """Convert a TSV row dict to a VarSeqInfo overrides dict."""
+    overrides = {}
+    for col, attr in OVERRIDE_FIELD_MAP.items():
+        val = row.get(col, "").strip()
+        if not val:
+            continue
+        if attr == "_pt_name":
+            # "Last, First (MRN)" or "Last, First"
+            name = val.split(" (")[0]
+            parts = name.split(",")
+            overrides["pt_ln"] = parts[0].strip()
+            overrides["pt_fn"] = parts[1].strip() if len(parts) > 1 else ""
+        elif attr == "_prov_name":
+            parts = val.split(",")
+            overrides["prov_ln"] = parts[0].strip()
+            overrides["prov_fn"] = parts[1].strip() if len(parts) > 1 else ""
+        elif attr == "sex":
+            overrides["sex"] = val[0] if val in ("Female", "Male") else (val if len(val) == 1 else "O")
+        elif attr in ("bday", "date_ordered", "date_received"):
+            overrides[attr] = _format_override_date(val)
+        elif attr == "mrn":
+            overrides["mrn"] = str(val).zfill(7)
+        elif attr == "prov_id":
+            overrides["prov_id"] = str(val).zfill(6)
+        elif attr == "sample_id":
+            sid = val
+            if sid.endswith('R'):
+                sid = sid.rstrip('R')
+            elif sid[-1].isdigit() and len(sid) > 1 and sid[-2] == 'R':
+                sid = sid[:-2]
+            overrides["sample_id"] = sid
+        else:
+            overrides[attr] = val
+    return overrides
+
+def _row_to_normal_overrides(row):
+    """Convert a normal-sample TSV row dict to a normal overrides dict."""
+    overrides = {}
+    for col, custom_field in NORMAL_OVERRIDE_FIELDS.items():
+        val = row.get(col, "").strip()
+        if not val:
+            continue
+        if custom_field in ("N_DateOrdered", "N_DateReceived"):
+            overrides[custom_field] = _format_override_date(val)
+        elif custom_field == "N_SID":
+            sid = val.rstrip('R')
+            overrides[custom_field] = sid
+        else:
+            overrides[custom_field] = val
+    # Also pull patient-level fields from the normal row for the normal msg header
+    normal_patient_overrides = _row_to_overrides(row)
+    overrides.update(normal_patient_overrides)
+    return overrides
 
 class VarSeqInfo():
-    def __init__(self, varseq_json):
+    def __init__(self, varseq_json, tumor_overrides=None, normal_overrides=None):
         self.obx_idx = 0
         self.varseq_json = varseq_json
         self.sample_state = varseq_json["sampleState"]
@@ -33,6 +148,11 @@ class VarSeqInfo():
         self.prov_id = self.get_prov_id()
         self.date_sent = self.get_date_sent()
         self.variants = self.get_all_variants()
+        # Apply tumor overrides (patient/order info only, not obx_idx/varseq_json/sample_state/coverage_summary/variants)
+        self.normal_overrides = normal_overrides or {}
+        if tumor_overrides:
+            for attr, val in tumor_overrides.items():
+                setattr(self, attr, val)
 
     def next_obx_idx(self):
         self.obx_idx += 1
@@ -340,14 +460,24 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_o
 
     def get_normal_msg_header(self):
         self.reset_obx_idx()
-        norm_sample_id = self.get_custom_field("N_SID").rstrip('R')
-        norm_order_num = self.get_custom_field("N_OrderID")
-        norm_date_ordered = self.get_date("N_DateOrdered")
-        norm_date_received = self.get_date("N_DateReceived")
+        ovr = self.normal_overrides
+        norm_sample_id = ovr.get("N_SID", self.get_custom_field("N_SID").rstrip('R'))
+        norm_order_num = ovr.get("N_OrderID", self.get_custom_field("N_OrderID"))
+        norm_date_ordered = ovr.get("N_DateOrdered", self.get_date("N_DateOrdered"))
+        norm_date_received = ovr.get("N_DateReceived", self.get_date("N_DateReceived"))
+        # Use overridden patient/provider info if present in the normal overrides
+        mrn = ovr.get("mrn", self.mrn)
+        pt_ln = ovr.get("pt_ln", self.pt_ln)
+        pt_fn = ovr.get("pt_fn", self.pt_fn)
+        bday = ovr.get("bday", self.bday)
+        sex = ovr.get("sex", self.sex)
+        prov_id = ovr.get("prov_id", self.prov_id)
+        prov_ln = ovr.get("prov_ln", self.prov_ln)
+        prov_fn = ovr.get("prov_fn", self.prov_fn)
         return f"""MSH|^~\&|RRH||Beaker||{self.date_sent}||ORU^R01|1|P|2.3||||||\r
-PID|1||{self.mrn}^^^MRN^MRN||{self.pt_ln}^{self.pt_fn}^||{self.bday}|{self.sex}\r
+PID|1||{mrn}^^^MRN^MRN||{pt_ln}^{pt_fn}^||{bday}|{sex}\r
 ORC|RE\r
-OBR|1|{norm_order_num}|{norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Comparator^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{norm_date_ordered}|||||||||{self.prov_id}^{self.prov_ln}^{self.prov_fn}^^^^^^EPIC^^^^PROVID||||||{norm_date_received}|||F\r"""
+OBR|1|{norm_order_num}|{norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Comparator^BKREAP^^^^^^SOLID TUMOR PAN-CANCER PANEL|||{norm_date_ordered}|||||||||{prov_id}^{prov_ln}^{prov_fn}^^^^^^EPIC^^^^PROVID||||||{norm_date_received}|||F\r"""
 
     def get_tumor_obxs(self):
         return "\r\n".join([self.get_tumor_variant_obxs(variant, idx) for idx, variant in enumerate(self.variants)])
@@ -367,8 +497,8 @@ OBR|1|{norm_order_num}|{norm_sample_id}^Beaker|LAB9056^Pan-cancer Panel, Compara
                 return header + normal_obxs
         return ""
 
-def send_hl7_msg(vs_json):
-    vs_info = VarSeqInfo(vs_json)
+def send_hl7_msg(vs_json, tumor_overrides=None, normal_overrides=None):
+    vs_info = VarSeqInfo(vs_json, tumor_overrides=tumor_overrides, normal_overrides=normal_overrides)
     tumor_msg, normal_msg = vs_info.get_tumor_msg(), vs_info.get_normal_msg()
     with hl7.client.MLLPClient(INTERFACE_HOST, INTERFACE_PORT) as client:
         with open(f"{vs_info.sample_id}_tumor_msg.txt", "w") as f:
@@ -382,12 +512,20 @@ def send_hl7_msg(vs_json):
             print(f"Sent normal message: {normal_msg.splitlines()[3]}")
     return vs_json
 
+# Parse the override file once at startup (if provided)
+TUMOR_OVERRIDES, NORMAL_OVERRIDES = parse_sampleinfo_override(SAMPLEINFO_OVERRIDE)
+if SAMPLEINFO_OVERRIDE:
+    print(f"Loaded sampleinfo overrides from: {SAMPLEINFO_OVERRIDE}")
+    print(f"  Tumor overrides: {TUMOR_OVERRIDES}")
+    if NORMAL_OVERRIDES:
+        print(f"  Normal overrides: {NORMAL_OVERRIDES}")
+
 app = Flask(__name__)
 @app.route('/receivejson', methods=['POST'])
 def receive_json():
     data = request.get_json()
     if data:
-        result = send_hl7_msg(data)
+        result = send_hl7_msg(data, tumor_overrides=TUMOR_OVERRIDES, normal_overrides=NORMAL_OVERRIDES)
         return jsonify(result), 200
     else:
         return jsonify({"error": "No JSON data received"}), 400
