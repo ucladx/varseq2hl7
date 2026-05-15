@@ -241,7 +241,7 @@ class VarSeqInfo():
             return round(variant["vaf"], 2)
         elif variant.get("sv_vaf"):
             return round(variant["sv_vaf"], 2)
-		# If no VAF is given, calculate it from altReadCount and readDepth
+        # If no VAF is given, calculate it from altReadCount and readDepth
         elif variant["altReadCount"] and variant["readDepth"]:
             return round(variant["altReadCount"] / variant["readDepth"], 2)
         else:
@@ -336,6 +336,13 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_o
         if self.panel == "UCLA Pan-Cancer All v1" or self.panel == "Pan-Cancer Solid Tumor Exon Targets":
             header += f"""{self.create_obx_segment("2a", "81695-9", f"^{self.get_msi()}")}\r"""
             header += f"""{self.create_obx_segment("2a", "94076-7", f"{self.get_tmb()}")}\r"""
+        elif self.panel == "UCLA Heme v2":
+            under_covered_genes = self.get_custom_field("underCoveredGenes")
+            if under_covered_genes:
+                header += f"""{self.create_obx_segment("2a", "7102447", under_covered_genes)}\r"""
+            pipeline_version = self.get_custom_field("Pipeline_version")
+            if pipeline_version:
+                header += f"""{self.create_obx_segment("2a", "7102448", pipeline_version)}\r"""
         return header
 
     def get_normal_msg_header(self):
