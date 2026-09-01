@@ -456,7 +456,7 @@ OBR|1|{self.order_num}|{self.sample_id}^Beaker|{lab_code_segment}|||{self.date_o
         if self.panel == "UCLA Pan-Cancer All v1" or self.panel == "Pan-Cancer Solid Tumor Exon Targets":
             header += f"""{self.create_obx_segment("2a", "81695-9", f"^{self.get_msi()}")}\r"""
             header += f"""{self.create_obx_segment("2a", "94076-7", f"{self.get_tmb()}")}\r"""
-        elif self.panel == "UCLA Heme v2":
+        elif self.panel == "UCLA Heme v2" or self.panel == "GOAL 221 Heme Exon Targets":
             under_covered_genes = self.get_custom_field("underCoveredGenes")
             if under_covered_genes:
                 header += f"""{self.create_obx_segment("2a", "7102447", under_covered_genes)}\r"""
